@@ -1,0 +1,265 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from '../theme/theme';
+import { CustomButton } from '../components/CustomButton';
+import { ScreenHeader } from '../components/ScreenHeader';
+
+const { height } = Dimensions.get('window');
+
+export const ProductDetailsScreen = ({ route, navigation }) => {
+    const { product } = route.params;
+    const insets = useSafeAreaInsets();
+    const [quantity, setQuantity] = useState(1);
+    const [isFavorite, setIsFavorite] = useState(false);
+
+    const increment = () => setQuantity(prev => prev + 1);
+    const decrement = () => setQuantity(prev => (prev > 1 ? prev - 1 : 1));
+
+    const handleAddToCart = () => {
+        alert(`Añadiste ${quantity}x ${product.name} al carrito`);
+        navigation.goBack();
+    };
+
+    return (
+        <View style={styles.container}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+
+                {/* Header with Background Image */}
+                <View style={styles.imageContainer}>
+                    <Image source={{ uri: product.image }} style={styles.image} />
+
+                    {/* Overlay for top icons */}
+                    <View style={[styles.headerOverlay, { paddingTop: insets.top + theme.spacing.sm }]}>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => navigation.goBack()}
+                        >
+                            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => setIsFavorite(!isFavorite)}
+                        >
+                            <Ionicons
+                                name={isFavorite ? "heart" : "heart-outline"}
+                                size={24}
+                                color={isFavorite ? theme.colors.error : theme.colors.text}
+                            />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Content Details */}
+                <View style={styles.contentContainer}>
+                    <View style={styles.titleRow}>
+                        <Text style={styles.title}>{product.name}</Text>
+                        <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+                    </View>
+
+                    <View style={styles.infoRow}>
+                        <View style={styles.infoBadge}>
+                            <Ionicons name="star" size={16} color={theme.colors.secondary} />
+                            <Text style={styles.infoText}>{product.rating}</Text>
+                        </View>
+                        <View style={styles.infoBadge}>
+                            <Ionicons name="flame-outline" size={16} color={theme.colors.error} />
+                            <Text style={styles.infoText}>{product.calories}</Text>
+                        </View>
+                        {product.prepTime && (
+                            <View style={styles.infoBadge}>
+                                <Ionicons name="time-outline" size={16} color={theme.colors.primaryLight} />
+                                <Text style={styles.infoText}>{product.prepTime}</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    <Text style={styles.sectionTitle}>Descripción</Text>
+                    <Text style={styles.description}>{product.description}</Text>
+
+                    <View style={styles.divider} />
+
+                    {/* Quantity Selector */}
+                    <View style={styles.quantitySection}>
+                        <Text style={styles.sectionTitle}>Cantidad</Text>
+                        <View style={styles.quantityControl}>
+                            <TouchableOpacity style={styles.qtyButton} onPress={decrement}>
+                                <Ionicons name="remove" size={24} color={theme.colors.text} />
+                            </TouchableOpacity>
+                            <Text style={styles.qtyText}>{quantity}</Text>
+                            <TouchableOpacity style={styles.qtyButton} onPress={increment}>
+                                <Ionicons name="add" size={24} color={theme.colors.surface} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                </View>
+            </ScrollView>
+
+            {/* Bottom Action Bar */}
+            <View style={[styles.bottomBar, { paddingBottom: insets.bottom || theme.spacing.md }]}>
+                <View style={styles.totalContainer}>
+                    <Text style={styles.totalLabel}>Precio Total</Text>
+                    <Text style={styles.totalPrice}>${(product.price * quantity).toFixed(2)}</Text>
+                </View>
+                <CustomButton
+                    title="Añadir al carrito"
+                    onPress={handleAddToCart}
+                    style={styles.addButton}
+                    icon={<Ionicons name="cart-outline" size={20} color={theme.colors.surface} />}
+                />
+            </View>
+        </View>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: theme.colors.surface,
+    },
+    imageContainer: {
+        width: '100%',
+        height: height * 0.45,
+        position: 'relative',
+    },
+    image: {
+        width: '100%',
+        height: '100%',
+    },
+    headerOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: theme.spacing.lg,
+    },
+    iconButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: theme.colors.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.small,
+    },
+    contentContainer: {
+        padding: theme.spacing.xl,
+        backgroundColor: theme.colors.surface,
+        borderTopLeftRadius: theme.radius.xl * 1.5,
+        borderTopRightRadius: theme.radius.xl * 1.5,
+        marginTop: -30, // Overlap with image
+        flex: 1,
+    },
+    titleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: theme.spacing.md,
+    },
+    title: {
+        flex: 1,
+        fontSize: theme.typography.sizes.xxl,
+        fontWeight: theme.typography.weights.bold,
+        color: theme.colors.text,
+        lineHeight: 32,
+        paddingRight: theme.spacing.sm,
+    },
+    price: {
+        fontSize: theme.typography.sizes.xxl,
+        fontWeight: theme.typography.weights.bold,
+        color: theme.colors.primary,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.md,
+        marginBottom: theme.spacing.lg,
+    },
+    infoBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    infoText: {
+        fontSize: theme.typography.sizes.sm,
+        color: theme.colors.textMuted,
+        fontWeight: theme.typography.weights.medium,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: theme.colors.border,
+        marginVertical: theme.spacing.lg,
+    },
+    sectionTitle: {
+        fontSize: theme.typography.sizes.lg,
+        fontWeight: theme.typography.weights.bold,
+        color: theme.colors.text,
+        marginBottom: theme.spacing.sm,
+    },
+    description: {
+        fontSize: theme.typography.sizes.md,
+        color: theme.colors.textMuted,
+        lineHeight: 24,
+    },
+    quantitySection: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    quantityControl: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.background,
+        borderRadius: theme.radius.full,
+        padding: 4,
+    },
+    qtyButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: theme.colors.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.small,
+    },
+    qtyText: {
+        fontSize: theme.typography.sizes.lg,
+        fontWeight: theme.typography.weights.bold,
+        color: theme.colors.text,
+        paddingHorizontal: theme.spacing.lg,
+    },
+    bottomBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: theme.spacing.lg,
+        paddingTop: theme.spacing.md,
+        backgroundColor: theme.colors.surface,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+    },
+    totalContainer: {
+        flex: 1,
+    },
+    totalLabel: {
+        fontSize: theme.typography.sizes.sm,
+        color: theme.colors.textMuted,
+    },
+    totalPrice: {
+        fontSize: theme.typography.sizes.xl,
+        fontWeight: theme.typography.weights.bold,
+        color: theme.colors.text,
+    },
+    addButton: {
+        flex: 1.5,
+    }
+});
