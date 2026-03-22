@@ -8,6 +8,27 @@ import { ProductCard } from '../components/ProductCard';
 
 export const HomeScreen = ({ navigation }) => {
     const [activeCategory, setActiveCategory] = useState('1');
+    const [quantities, setQuantities] = useState({});
+
+    const handleAdd = (item) => {
+        setQuantities(prev => ({ ...prev, [item.id]: (prev[item.id] || 0) + 1 }));
+    };
+
+    const handleRemove = (item) => {
+        setQuantities(prev => {
+            const next = { ...prev };
+            if (next[item.id] > 1) { next[item.id] -= 1; } else { delete next[item.id]; }
+            return next;
+        });
+    };
+
+    const handleToggle = (item) => {
+        if (quantities[item.id]) {
+            setQuantities(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+        } else {
+            handleAdd(item);
+        }
+    };
 
     const renderCategory = ({ item }) => {
         const isActive = activeCategory === item.id;
@@ -32,6 +53,13 @@ export const HomeScreen = ({ navigation }) => {
         ? snacks
         : snacks.filter(s => s.categoryId === activeCategory);
 
+    const totalHomeItems = Object.values(quantities).reduce((acc, q) => acc + q, 0);
+    const totalHomePrice = Object.keys(quantities).reduce((acc, id) => {
+        const qty = quantities[id];
+        const item = snacks.find(s => s.id === id);
+        return acc + (item ? item.price * qty : 0);
+    }, 0);
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
@@ -39,15 +67,6 @@ export const HomeScreen = ({ navigation }) => {
                     <Text style={styles.greeting}>Hola, Alumno 👋</Text>
                     <Text style={styles.subtitle}>¿Qué te apetece hoy?</Text>
                 </View>
-                <TouchableOpacity
-                    style={styles.cartBtn}
-                    onPress={() => navigation.navigate('Cart')}
-                >
-                    <Ionicons name="cart-outline" size={24} color={theme.colors.primary} />
-                    <View style={styles.cartBadge}>
-                        <Text style={styles.cartBadgeText}>2</Text>
-                    </View>
-                </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -102,8 +121,10 @@ export const HomeScreen = ({ navigation }) => {
                             <View key={item.id} style={styles.gridItem}>
                                 <ProductCard
                                     item={item}
-                                    onPress={() => navigation.navigate('ProductDetails', { product: item })}
-                                    onAdd={() => alert('Añadido al carrito')}
+                                    quantity={quantities[item.id] || 0}
+                                    onPress={() => handleToggle(item)}
+                                    onAdd={() => handleAdd(item)}
+                                    onRemove={() => handleRemove(item)}
                                 />
                             </View>
                         )) : (
@@ -113,6 +134,36 @@ export const HomeScreen = ({ navigation }) => {
                 </View>
 
             </ScrollView>
+
+            {totalHomeItems > 0 && (
+                <View style={styles.floatingContainer}>
+                    <TouchableOpacity
+                        style={styles.checkoutBtn}
+                        activeOpacity={0.9}
+                        onPress={() => {
+                            const selectedItems = Object.keys(quantities)
+                                .map(id => {
+                                    const item = snacks.find(s => s.id === id);
+                                    return item ? { ...item, quantity: quantities[id] } : null;
+                                })
+                                .filter(Boolean);
+                            navigation.navigate('Pedidos', { 
+                                incomingItems: selectedItems, 
+                                source: 'Inicio',
+                                orderId: Date.now() 
+                            });
+                        }}
+                    >
+                        <View style={styles.checkoutInfo}>
+                            <View style={styles.checkoutBadge}>
+                                <Text style={styles.checkoutBadgeText}>{totalHomeItems}</Text>
+                            </View>
+                            <Text style={styles.checkoutText}>Ver Pedido</Text>
+                        </View>
+                        <Text style={styles.checkoutTotal}>${totalHomePrice.toFixed(2)}</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 };
@@ -263,6 +314,56 @@ const styles = StyleSheet.create({
     emptyText: {
         textAlign: 'center',
         color: theme.colors.textMuted,
-        marginTop: theme.spacing.lg,
-    }
+        margin: theme.spacing.xl,
+    },
+    /* Floating Button */
+    floatingContainer: {
+        position: 'absolute',
+        bottom: 110,
+        left: theme.spacing.lg,
+        right: theme.spacing.lg,
+        backgroundColor: theme.colors.primaryLight,
+        borderRadius: 18,
+        shadowColor: theme.colors.primaryLight,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    checkoutBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+    },
+    checkoutInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkoutBadge: {
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    checkoutBadgeText: {
+        color: '#FFF',
+        fontWeight: '800',
+        fontSize: 15,
+    },
+    checkoutText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    checkoutTotal: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: '900',
+        letterSpacing: 0.5,
+    },
 });

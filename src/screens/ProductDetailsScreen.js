@@ -12,14 +12,26 @@ export const ProductDetailsScreen = ({ route, navigation }) => {
     const { product } = route.params;
     const insets = useSafeAreaInsets();
     const [quantity, setQuantity] = useState(1);
-    const [isFavorite, setIsFavorite] = useState(false);
 
     const increment = () => setQuantity(prev => prev + 1);
     const decrement = () => setQuantity(prev => (prev > 1 ? prev - 1 : 1));
 
     const handleAddToCart = () => {
-        alert(`Añadiste ${quantity}x ${product.name} al carrito`);
-        navigation.goBack();
+        if (product.categoryId === '2') {
+            // Logic for "Crear Pedido" for Combos (Nested navigation)
+            navigation.navigate('MainTabs', {
+                screen: 'Pedidos',
+                params: {
+                    incomingItems: [{ ...product, quantity }],
+                    source: 'ProductDetails',
+                    orderId: Date.now()
+                }
+            });
+        } else {
+            // Standard "Add to Cart" logic
+            alert(`Añadiste ${quantity}x ${product.name} al carrito`);
+            navigation.goBack();
+        }
     };
 
     return (
@@ -37,17 +49,6 @@ export const ProductDetailsScreen = ({ route, navigation }) => {
                             onPress={() => navigation.goBack()}
                         >
                             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.iconButton}
-                            onPress={() => setIsFavorite(!isFavorite)}
-                        >
-                            <Ionicons
-                                name={isFavorite ? "heart" : "heart-outline"}
-                                size={24}
-                                color={isFavorite ? theme.colors.error : theme.colors.text}
-                            />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -81,6 +82,23 @@ export const ProductDetailsScreen = ({ route, navigation }) => {
                     <Text style={styles.sectionTitle}>Descripción</Text>
                     <Text style={styles.description}>{product.description}</Text>
 
+                    {product.items && product.items.length > 0 && (
+                        <View style={styles.itemsSection}>
+                            <View style={styles.divider} />
+                            <Text style={styles.sectionTitle}>¿Qué incluye este combo?</Text>
+                            <View style={styles.itemsGrid}>
+                                {product.items.map((item, index) => (
+                                    <View key={index} style={styles.itemRow}>
+                                        <View style={styles.itemIconBg}>
+                                            <Text style={styles.itemIcon}>{item.icon}</Text>
+                                        </View>
+                                        <Text style={styles.itemText}>{item.name}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
                     <View style={styles.divider} />
 
                     {/* Quantity Selector */}
@@ -107,10 +125,10 @@ export const ProductDetailsScreen = ({ route, navigation }) => {
                     <Text style={styles.totalPrice}>${(product.price * quantity).toFixed(2)}</Text>
                 </View>
                 <CustomButton
-                    title="Añadir al carrito"
+                    title={product.categoryId === '2' ? "Crear pedido" : "Añadir al carrito"}
                     onPress={handleAddToCart}
                     style={styles.addButton}
-                    icon={<Ionicons name="cart-outline" size={20} color={theme.colors.surface} />}
+                    icon={<Ionicons name={product.categoryId === '2' ? "receipt-outline" : "cart-outline"} size={20} color={theme.colors.surface} />}
                 />
             </View>
         </View>
@@ -261,5 +279,37 @@ const styles = StyleSheet.create({
     },
     addButton: {
         flex: 1.5,
+    },
+    itemsSection: {
+        marginTop: theme.spacing.md,
+    },
+    itemsGrid: {
+        marginTop: theme.spacing.sm,
+    },
+    itemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        padding: 12,
+        borderRadius: 16,
+        marginBottom: 10,
+    },
+    itemIconBg: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+        ...theme.shadows.small,
+    },
+    itemIcon: {
+        fontSize: 20,
+    },
+    itemText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: theme.colors.text,
     }
 });

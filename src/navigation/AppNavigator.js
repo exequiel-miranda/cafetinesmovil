@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 // Screens
-import { HomeScreen } from '../screens/HomeScreen';
+import { TabNavigator } from './TabNavigator';
 import { ProductDetailsScreen } from '../screens/ProductDetailsScreen';
 import { CartScreen } from '../screens/CartScreen';
 
@@ -18,7 +18,7 @@ export const AppNavigator = () => {
                     animation: 'slide_from_right',
                 }}
             >
-                <Stack.Screen name="Home" component={HomeScreen} />
+                <Stack.Screen name="MainTabs" component={TabNavigator} />
                 <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
                 <Stack.Screen
                     name="Cart"
