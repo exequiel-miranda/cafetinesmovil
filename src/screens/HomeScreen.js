@@ -3,39 +3,52 @@ import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, Image }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { categories, featuredLunches, snacks } from '../data/mockData';
+import { useCategories, useFeaturedProducts, useProducts } from '../hooks/useApi';
 import { ProductCard } from '../components/ProductCard';
+import { FloatingCheckout } from '../components/FloatingCheckout';
 
 export const HomeScreen = ({ navigation }) => {
-    const [activeCategory, setActiveCategory] = useState('1');
+    const { categories, loading: loadingCats } = useCategories();
+    const { products: featuredProducts, loading: loadingFeatured } = useFeaturedProducts();
+    
+    const [activeCategory, setActiveCategory] = useState('1'); // '1' es 'Todos'
     const [quantities, setQuantities] = useState({});
 
+    // Cargar productos según categoría activa
+    const { products: currentProducts, loading: loadingProducts } = useProducts(
+        activeCategory === '1' ? { type: 'snack' } : { categoryId: activeCategory }
+    );
+
     const handleAdd = (item) => {
-        setQuantities(prev => ({ ...prev, [item.id]: (prev[item.id] || 0) + 1 }));
+        const id = item._id || item.id;
+        setQuantities(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     };
 
     const handleRemove = (item) => {
+        const id = item._id || item.id;
         setQuantities(prev => {
             const next = { ...prev };
-            if (next[item.id] > 1) { next[item.id] -= 1; } else { delete next[item.id]; }
+            if (next[id] > 1) { next[id] -= 1; } else { delete next[id]; }
             return next;
         });
     };
 
     const handleToggle = (item) => {
-        if (quantities[item.id]) {
-            setQuantities(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+        const id = item._id || item.id;
+        if (quantities[id]) {
+            setQuantities(prev => { const next = { ...prev }; delete next[id]; return next; });
         } else {
             handleAdd(item);
         }
     };
 
     const renderCategory = ({ item }) => {
-        const isActive = activeCategory === item.id;
+        const id = item._id || item.id;
+        const isActive = activeCategory === id;
         return (
             <TouchableOpacity
                 style={[styles.categoryItem, isActive && styles.categoryItemActive]}
-                onPress={() => setActiveCategory(item.id)}
+                onPress={() => setActiveCategory(id)}
             >
                 <Ionicons
                     name={item.icon}
@@ -49,14 +62,10 @@ export const HomeScreen = ({ navigation }) => {
         );
     };
 
-    const currentProducts = activeCategory === '1'
-        ? snacks
-        : snacks.filter(s => s.categoryId === activeCategory);
-
     const totalHomeItems = Object.values(quantities).reduce((acc, q) => acc + q, 0);
     const totalHomePrice = Object.keys(quantities).reduce((acc, id) => {
         const qty = quantities[id];
-        const item = snacks.find(s => s.id === id);
+        const item = currentProducts.find(s => (s._id || s.id) === id);
         return acc + (item ? item.price * qty : 0);
     }, 0);
 
@@ -64,7 +73,7 @@ export const HomeScreen = ({ navigation }) => {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.greeting}>Hola, Alumno 👋</Text>
+                    <Text style={styles.greeting}>Hola, Usuario </Text>
                     <Text style={styles.subtitle}>¿Qué te apetece hoy?</Text>
                 </View>
             </View>
@@ -74,31 +83,35 @@ export const HomeScreen = ({ navigation }) => {
                 {/* Featured Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Menú Destacado</Text>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.horizontalList}
-                    >
-                        {featuredLunches.map((item) => (
-                            <TouchableOpacity
-                                key={item.id}
-                                style={styles.featuredCard}
-                                activeOpacity={0.9}
-                                onPress={() => navigation.navigate('ProductDetails', { product: item })}
-                            >
-                                <Image source={{ uri: item.image }} style={styles.featuredImage} />
-                                <View style={styles.featuredOverlay}>
-                                    <Text style={styles.featuredTitle}>{item.name}</Text>
-                                    <Text style={styles.featuredPrice}>${item.price.toFixed(2)}</Text>
-                                </View>
-                                {item.popular && (
-                                    <View style={styles.popularBadge}>
-                                        <Text style={styles.popularBadgeText}>Especial</Text>
+                    {loadingFeatured ? (
+                        <Text style={styles.emptyText}>Cargando destacados...</Text>
+                    ) : (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                        >
+                            {featuredProducts.map((item) => (
+                                <TouchableOpacity
+                                    key={item._id || item.id}
+                                    style={styles.featuredCard}
+                                    activeOpacity={0.9}
+                                    onPress={() => navigation.navigate('ProductDetails', { product: item })}
+                                >
+                                    <Image source={{ uri: item.image }} style={styles.featuredImage} />
+                                    <View style={styles.featuredOverlay}>
+                                        <Text style={styles.featuredTitle}>{item.name}</Text>
+                                        <Text style={styles.featuredPrice}>${item.price.toFixed(2)}</Text>
                                     </View>
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
+                                    {item.popular && (
+                                        <View style={styles.popularBadge}>
+                                            <Text style={styles.popularBadgeText}>Especial</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    )}
                 </View>
 
                 {/* Categories */}
@@ -106,7 +119,7 @@ export const HomeScreen = ({ navigation }) => {
                     <FlatList
                         data={categories}
                         renderItem={renderCategory}
-                        keyExtractor={item => item.id}
+                        keyExtractor={item => item._id || item.id}
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.categoriesList}
@@ -117,11 +130,13 @@ export const HomeScreen = ({ navigation }) => {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Para ti</Text>
                     <View style={styles.productsGrid}>
-                        {currentProducts.length > 0 ? currentProducts.map((item) => (
-                            <View key={item.id} style={styles.gridItem}>
+                        {loadingProducts ? (
+                            <Text style={styles.emptyText}>Cargando productos...</Text>
+                        ) : currentProducts.length > 0 ? currentProducts.map((item) => (
+                            <View key={item._id || item.id} style={styles.gridItem}>
                                 <ProductCard
                                     item={item}
-                                    quantity={quantities[item.id] || 0}
+                                    quantity={quantities[item._id || item.id] || 0}
                                     onPress={() => handleToggle(item)}
                                     onAdd={() => handleAdd(item)}
                                     onRemove={() => handleRemove(item)}
@@ -135,35 +150,26 @@ export const HomeScreen = ({ navigation }) => {
 
             </ScrollView>
 
-            {totalHomeItems > 0 && (
-                <View style={styles.floatingContainer}>
-                    <TouchableOpacity
-                        style={styles.checkoutBtn}
-                        activeOpacity={0.9}
-                        onPress={() => {
-                            const selectedItems = Object.keys(quantities)
-                                .map(id => {
-                                    const item = snacks.find(s => s.id === id);
-                                    return item ? { ...item, quantity: quantities[id] } : null;
-                                })
-                                .filter(Boolean);
-                            navigation.navigate('Pedidos', { 
-                                incomingItems: selectedItems, 
-                                source: 'Inicio',
-                                orderId: Date.now() 
-                            });
-                        }}
-                    >
-                        <View style={styles.checkoutInfo}>
-                            <View style={styles.checkoutBadge}>
-                                <Text style={styles.checkoutBadgeText}>{totalHomeItems}</Text>
-                            </View>
-                            <Text style={styles.checkoutText}>Ver Pedido</Text>
-                        </View>
-                        <Text style={styles.checkoutTotal}>${totalHomePrice.toFixed(2)}</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+            <FloatingCheckout 
+                totalItems={totalHomeItems}
+                totalPrice={totalHomePrice}
+                onCheckout={() => {
+                    const selectedItems = Object.keys(quantities)
+                        .map(id => {
+                            const item = currentProducts.find(s => (s._id || s.id) === id);
+                            return item ? { ...item, quantity: quantities[id] } : null;
+                        })
+                        .filter(Boolean);
+                    navigation.navigate('Pedidos', {
+                        incomingItems: selectedItems,
+                        source: 'Inicio',
+                        orderId: Date.now()
+                    });
+                }}
+                onAddSnack={(snack) => handleAdd(snack)}
+                showSuggestions={false}
+                quantities={quantities}
+            />
         </SafeAreaView>
     );
 };
@@ -315,55 +321,5 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: theme.colors.textMuted,
         margin: theme.spacing.xl,
-    },
-    /* Floating Button */
-    floatingContainer: {
-        position: 'absolute',
-        bottom: 110,
-        left: theme.spacing.lg,
-        right: theme.spacing.lg,
-        backgroundColor: theme.colors.primaryLight,
-        borderRadius: 18,
-        shadowColor: theme.colors.primaryLight,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-        elevation: 8,
-    },
-    checkoutBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-    },
-    checkoutInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    checkoutBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    checkoutBadgeText: {
-        color: '#FFF',
-        fontWeight: '800',
-        fontSize: 15,
-    },
-    checkoutText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    checkoutTotal: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: '900',
-        letterSpacing: 0.5,
     },
 });

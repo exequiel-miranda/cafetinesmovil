@@ -1,70 +1,75 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, FlatList, Dimensions, Modal, Pressable, Animated, PanResponder, Platform } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, FlatList, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { snacks, combos, allProducts } from '../data/mockData';
-
-const { width } = Dimensions.get('window');
+import { useProducts } from '../hooks/useApi.js';
+import { FloatingCheckout } from '../components/FloatingCheckout';
 
 export const SnacksScreen = ({ navigation }) => {
+    const { products: snacks, loading: loadingSnacks } = useProducts({ type: 'snack' });
+    const { products: allProducts, loading: loadingAll } = useProducts(); // Fetch all for search/best sellers
+    
     const [searchQuery, setSearchQuery] = useState('');
     const [quantities, setQuantities] = useState({});
 
     const handleAdd = (item) => {
+        const id = item._id || item.id;
         setQuantities(prev => ({
             ...prev,
-            [item.id]: (prev[item.id] || 0) + 1
+            [id]: (prev[id] || 0) + 1
         }));
     };
 
     const handleRemove = (item) => {
+        const id = item._id || item.id;
         setQuantities(prev => {
             const newQuantities = { ...prev };
-            if (newQuantities[item.id] > 1) {
-                newQuantities[item.id] -= 1;
+            if (newQuantities[id] > 1) {
+                newQuantities[id] -= 1;
             } else {
-                delete newQuantities[item.id];
+                delete newQuantities[id];
             }
             return newQuantities;
         });
     };
 
     const handleToggle = (item) => {
-        if (quantities[item.id]) {
-            setQuantities(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+        const id = item._id || item.id;
+        if (quantities[id]) {
+            setQuantities(prev => { const next = { ...prev }; delete next[id]; return next; });
         } else {
             handleAdd(item);
         }
     };
 
     const bestSellers = useMemo(() => {
-        // Filter out lunches (categoryId '2') AND combos (anything in the 'combos' array)
-        const comboIds = combos.map(c => c.id);
+        // En el backend '1' es Snacks, '2' es Almuerzos
         return allProducts.filter(item => 
             item.popular && 
-            item.categoryId !== '2' && 
-            !comboIds.includes(item.id)
+            item.categoryId !== '2' &&
+            item.type === 'snack'
         ); 
-    }, []);
+    }, [allProducts]);
 
     const filteredSnacks = useMemo(() => {
         if (!searchQuery) return snacks;
         return snacks.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }, [searchQuery]);
+    }, [searchQuery, snacks]);
 
     const selectedItemsList = useMemo(() => {
         return allProducts
-            .filter(item => quantities[item.id])
-            .map(item => ({ ...item, quantity: quantities[item.id] }));
-    }, [quantities]);
+            .filter(item => quantities[item._id || item.id])
+            .map(item => ({ ...item, quantity: quantities[item._id || item.id] }));
+    }, [quantities, allProducts]);
 
     const totalOrderPrice = selectedItemsList.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const totalItemsCount = selectedItemsList.reduce((acc, item) => acc + item.quantity, 0);
 
     // Horizontal Scroll Card (For Best Sellers)
     const renderSnackCard = ({ item }) => {
-        const qty = quantities[item.id] || 0;
+        const id = item._id || item.id;
+        const qty = quantities[id] || 0;
         
         return (
             <TouchableOpacity 
@@ -106,11 +111,12 @@ export const SnacksScreen = ({ navigation }) => {
 
     // Full Width List Card (For "Todos los Snacks")
     const renderListCard = (item) => {
-        const qty = quantities[item.id] || 0;
+        const id = item._id || item.id;
+        const qty = quantities[id] || 0;
 
         return (
             <TouchableOpacity 
-                key={item.id}
+                key={id}
                 activeOpacity={1}
                 style={[styles.listCard, qty > 0 && styles.cardSelected]}
                 onPress={() => item.categoryId === '2' ? navigation.navigate('ProductDetails', { product: item }) : handleToggle(item)}
@@ -180,12 +186,14 @@ export const SnacksScreen = ({ navigation }) => {
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                {searchQuery === '' && bestSellers.length > 0 && (
+                {searchQuery === '' && (loadingAll ? (
+                    <Text style={styles.emptyText}>Cargando más vendidos...</Text>
+                ) : bestSellers.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Más Vendidos</Text>
                         <FlatList 
                             data={bestSellers}
-                            keyExtractor={item => item.id}
+                            keyExtractor={item => item._id || item.id}
                             renderItem={renderSnackCard}
                             horizontal
                             showsHorizontalScrollIndicator={false}
@@ -194,14 +202,16 @@ export const SnacksScreen = ({ navigation }) => {
                             decelerationRate="fast"
                         />
                     </View>
-                )}
+                ))}
 
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{searchQuery ? 'Resultados' : 'Todos los Snacks'}</Text>
                     <View style={styles.listContainer}>
-                        {filteredSnacks.map(item => renderListCard(item))}
+                        {loadingSnacks ? (
+                            <Text style={styles.emptyText}>Cargando snacks...</Text>
+                        ) : filteredSnacks.map(item => renderListCard(item))}
                         
-                        {filteredSnacks.length === 0 && (
+                        {!loadingSnacks && filteredSnacks.length === 0 && (
                             <View style={styles.emptyStateContainer}>
                                 <Ionicons name="search-outline" size={48} color="#D1D5DB" />
                                 <Text style={styles.emptyText}>No encontramos lo que buscas.</Text>
@@ -211,29 +221,20 @@ export const SnacksScreen = ({ navigation }) => {
                 </View>
             </ScrollView>
 
-            {totalItemsCount > 0 && (
-                <View style={styles.floatingContainer}>
-                    <TouchableOpacity 
-                        style={styles.checkoutBtn} 
-                        activeOpacity={0.9} 
-                        onPress={() => {
-                            navigation.navigate('Pedidos', { 
-                                incomingItems: selectedItemsList, 
-                                source: 'Snacks',
-                                orderId: Date.now()
-                            });
-                        }}
-                    >
-                        <View style={styles.checkoutInfo}>
-                            <View style={styles.checkoutBadge}>
-                                <Text style={styles.checkoutBadgeText}>{totalItemsCount}</Text>
-                            </View>
-                            <Text style={styles.checkoutText}>Ver Pedido</Text>
-                        </View>
-                        <Text style={styles.checkoutTotal}>${totalOrderPrice.toFixed(2)}</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+            <FloatingCheckout 
+                totalItems={totalItemsCount}
+                totalPrice={totalOrderPrice}
+                onCheckout={() => {
+                    navigation.navigate('Pedidos', { 
+                        incomingItems: selectedItemsList, 
+                        source: 'Snacks',
+                        orderId: Date.now()
+                    });
+                }}
+                onAddSnack={(snack) => handleAdd(snack)}
+                showSuggestions={false}
+                quantities={quantities}
+            />
 
 
         </SafeAreaView>
@@ -524,56 +525,6 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 16,
         fontWeight: '500',
-    },
-    /* Floating Bottom Bar */
-    floatingContainer: {
-        position: 'absolute',
-        bottom: 110, 
-        left: theme.spacing.lg,
-        right: theme.spacing.lg,
-        backgroundColor: theme.colors.primaryLight,
-        borderRadius: 18, 
-        shadowColor: theme.colors.primaryLight,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-        elevation: 8,
-    },
-    checkoutBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-    },
-    checkoutInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    checkoutBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    checkoutBadgeText: {
-        color: '#FFF',
-        fontWeight: '800',
-        fontSize: 15,
-    },
-    checkoutText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    checkoutTotal: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: '900',
-        letterSpacing: 0.5,
     },
     /* Preview Modal Styles */
     modalOverlay: {

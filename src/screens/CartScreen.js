@@ -5,16 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { CustomButton } from '../components/CustomButton';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { allProducts } from '../data/mockData';
+import { useProducts } from '../hooks/useApi.js';
 
 export const CartScreen = ({ navigation }) => {
+    const { products: allProducts } = useProducts();
     const insets = useSafeAreaInsets();
 
-    // Create mock cart items based on our data
-    const [cartItems, setCartItems] = useState([
-        { ...allProducts[0], quantity: 1 },
-        { ...allProducts[3], quantity: 2 },
-    ]);
+    const [cartItems, setCartItems] = useState([]);
 
     const updateQuantity = (id, delta) => {
         setCartItems(prev => prev.map(item => {
@@ -73,7 +70,7 @@ export const CartScreen = ({ navigation }) => {
                 <>
                     <FlatList
                         data={cartItems}
-                        keyExtractor={item => item.id}
+                        keyExtractor={item => item._id || item.id}
                         renderItem={renderCartItem}
                         contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}

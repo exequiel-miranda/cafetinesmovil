@@ -1,22 +1,26 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable, PanResponder, Animated, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+    View, Text, StyleSheet, ScrollView, TouchableOpacity, 
+    Animated, PanResponder, Modal, Pressable, 
+    KeyboardAvoidingView, Platform, TextInput 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../theme/theme';
-import { orders } from '../data/mockData';
+import { theme } from '../theme/theme.js';
+import { useOrders } from '../hooks/useApi.js';
+import { apiService } from '../api/apiService.js';
 
 export const OrdersScreen = ({ route, navigation }) => {
+    const { orders: activeOrders, loading: loadingOrders, refresh: refreshOrders } = useOrders();
     const [isTicketOpen, setIsTicketOpen] = useState(false);
     const [isFullScreenNumberOpen, setIsFullScreenNumberOpen] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     
-    // Lists for multiple orders
+    // List for local pending orders (before they are sent to backend)
     const [pendingOrders, setPendingOrders] = useState([]);
-    const [activeOrders, setActiveOrders] = useState([]);
     
     const [orderInPayment, setOrderInPayment] = useState(null);
     const [selectedOrder, setSelectedOrder] = useState(null);
-    const [nextOrderNum, setNextOrderNum] = useState(1);
 
     // Card Payment State
     const [showCardForm, setShowCardForm] = useState(false);
@@ -54,7 +58,7 @@ export const OrdersScreen = ({ route, navigation }) => {
         }
     }, [route.params?.orderId]);
 
-    const handlePayment = (method) => {
+    const handlePayment = async (method) => {
         if (!orderInPayment) return;
 
         if (method === 'Tarjeta' && !showCardForm) {
@@ -62,25 +66,38 @@ export const OrdersScreen = ({ route, navigation }) => {
             return;
         }
 
-        // Build the confirmed order object
-        const newOrder = {
-            id: String(nextOrderNum).padStart(2, '0'),
-            status: method === 'Efectivo' ? 'Esperando pago' : '',
-            statusColor: method === 'Efectivo' ? '#F59E0B' : '#10B981',
-            total: orderInPayment.total,
-            items: orderInPayment.items,
-            source: orderInPayment.source,
-            paymentMethod: method,
-            createdAt: new Date()
-        };
+        try {
+            // Build the confirmed order object for backend
+            const orderData = {
+                items: orderInPayment.items.map(item => ({
+                    productId: item._id || item.id,
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: item.price
+                })),
+                total: orderInPayment.total,
+                source: orderInPayment.source,
+                paymentMethod: method,
+                status: method === 'Efectivo' ? 'Esperando pago' : 'En Preparación'
+            };
 
-        setActiveOrders(prev => [newOrder, ...prev]);
-        setPendingOrders(prev => prev.filter(o => o.orderId !== orderInPayment.orderId));
-        setNextOrderNum(prev => prev + 1);
-        setShowPaymentModal(false);
-        setShowCardForm(false);
-        setCardData({ number: '', expiry: '', cvv: '', name: '' });
-        setOrderInPayment(null);
+            const response = await apiService.createOrder(orderData);
+            
+            if (response.ok) {
+                // Remove from local pending
+                setPendingOrders(prev => prev.filter(o => o.orderId !== orderInPayment.orderId));
+                // Refresh list from backend
+                refreshOrders();
+                
+                setShowPaymentModal(false);
+                setShowCardForm(false);
+                setCardData({ number: '', expiry: '', cvv: '', name: '' });
+                setOrderInPayment(null);
+            }
+        } catch (error) {
+            console.error('Error al crear pedido:', error);
+            alert('Error al procesar el pedido: ' + error.message);
+        }
     };
 
     const panY = useRef(new Animated.Value(0)).current;
@@ -216,21 +233,22 @@ export const OrdersScreen = ({ route, navigation }) => {
                                         {order.items.map((item, idx) => renderOrderItem(item, idx))}
                                     </View>
 
-                                    <View style={styles.activeOrderFooter}>
-                                        <Text style={styles.activeOrderTotal}>Total: ${order.total.toFixed(2)}</Text>
-                                        <TouchableOpacity 
-                                            style={styles.completeOrderBtn}
-                                            onPress={() => {
-                                                setOrderInPayment(order);
-                                                paymentPanY.setValue(0);
-                                                setShowPaymentModal(true);
-                                            }}
-                                            activeOpacity={0.8}
-                                        >
-                                            <Text style={styles.completeOrderText}>Completar</Text>
-                                            <Ionicons name="chevron-forward-circle" size={18} color="#FFF" />
-                                        </TouchableOpacity>
+                                    <View style={styles.pendingFooterTotal}>
+                                        <Text style={styles.pendingTotalLabel}>Total a pagar</Text>
+                                        <Text style={styles.activeOrderTotal}>${order.total.toFixed(2)}</Text>
                                     </View>
+                                    <TouchableOpacity 
+                                        style={styles.completeOrderBtn}
+                                        onPress={() => {
+                                            setOrderInPayment(order);
+                                            paymentPanY.setValue(0);
+                                            setShowPaymentModal(true);
+                                        }}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={styles.completeOrderText}>Completar pedido</Text>
+                                        <Ionicons name="receipt-outline" size={20} color="#FFF" />
+                                    </TouchableOpacity>
                                 </View>
                             );
                         })}
@@ -245,8 +263,18 @@ export const OrdersScreen = ({ route, navigation }) => {
                         </Text>
                         {activeOrders.map((order) => {
                             const cfg = sourceConfig[order.source] || defaultSourceConfig;
+                            // Color mapping for statuses
+                            const statusColors = {
+                                'Esperando pago': '#F59E0B',
+                                'En Preparación': '#3B82F6',
+                                'Listo': '#10B981',
+                                'Entregado': '#6B7280',
+                                'Cancelado': '#EF4444',
+                            };
+                            const statusColor = statusColors[order.status] || theme.colors.primary;
+
                             return (
-                                <View key={order.id} style={[styles.activeOrderCard, styles.confirmedOrderCard, { borderLeftWidth: 4, borderLeftColor: cfg.color, marginBottom: 16 }]}>
+                                <View key={order._id} style={[styles.activeOrderCard, styles.confirmedOrderCard, { borderLeftWidth: 4, borderLeftColor: cfg.color, marginBottom: 16 }]}>
                                     <View style={styles.activeOrderHeader}>
                                         <View>
                                             <View style={[styles.sourceBadge, { backgroundColor: cfg.bg, marginBottom: 8, alignSelf: 'flex-start' }]}>
@@ -260,14 +288,12 @@ export const OrdersScreen = ({ route, navigation }) => {
                                                     <Text style={styles.confirmedBadgeText}>CONFIRMADO</Text>
                                                 </View>
                                             </View>
-                                            {order.status !== '' && (
-                                                <View style={styles.statusRow}>
-                                                    <View style={[styles.pulseDot, { backgroundColor: order.statusColor }]} />
-                                                    <Text style={[styles.activeStatusText, { color: order.statusColor }]}>
-                                                        {order.status}
-                                                    </Text>
-                                                </View>
-                                            )}
+                                            <View style={styles.statusRow}>
+                                                <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
+                                                <Text style={[styles.activeStatusText, { color: statusColor }]}>
+                                                    {order.status}
+                                                </Text>
+                                            </View>
                                         </View>
                                     </View>
 
@@ -310,6 +336,7 @@ export const OrdersScreen = ({ route, navigation }) => {
                 visible={showPaymentModal}
                 transparent={true}
                 animationType="none"
+                statusBarTranslucent={true}
                 onRequestClose={() => {
                     setShowPaymentModal(false);
                     setShowCardForm(false);
@@ -499,6 +526,7 @@ export const OrdersScreen = ({ route, navigation }) => {
                     visible={isTicketOpen}
                     animationType="none"
                     transparent={true}
+                    statusBarTranslucent={true}
                     onRequestClose={() => setIsTicketOpen(false)}
                 >
                     <View style={styles.modalOverlay}>
@@ -529,7 +557,7 @@ export const OrdersScreen = ({ route, navigation }) => {
                                     onPress={() => setIsFullScreenNumberOpen(true)}
                                 >
                                     <Ionicons name="qr-code" size={120} color={theme.colors.text} />
-                                    <Text style={styles.ticketId}>Pedido #{selectedOrder.id.toUpperCase()}</Text>
+                                    <Text style={styles.ticketId}>Pedido #{selectedOrder.orderNumber || selectedOrder._id.slice(-4).toUpperCase()}</Text>
                                     <Text style={styles.expandText}>Toca para agrandar</Text>
                                     <Text style={styles.ticketStatus}>{selectedOrder.status}</Text>
                                 </TouchableOpacity>
@@ -583,7 +611,7 @@ export const OrdersScreen = ({ route, navigation }) => {
                             <View style={styles.fullScreenTopSection} {...fullScreenPanResponder.panHandlers}>
                                 <Text style={styles.fullScreenLabel}>PEDIDO</Text>
                                 <Text style={styles.fullScreenNumber} adjustsFontSizeToFit numberOfLines={1}>
-                                    {selectedOrder.id.toUpperCase()}
+                                    {selectedOrder.orderNumber || selectedOrder._id.slice(-4).toUpperCase()}
                                 </Text>
                             </View>
 
@@ -794,6 +822,21 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 16,
     },
+    activeOrderFooterPending: {
+        marginTop: 12,
+    },
+    totalRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginBottom: 16,
+        paddingHorizontal: 4,
+    },
+    activeOrderTotal: {
+        fontSize: 24,
+        fontWeight: '900',
+        color: '#111827',
+    },
     totalLabel: {
         fontSize: 16,
         color: theme.colors.textMuted,
@@ -818,24 +861,35 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '800',
     },
-     /* Ticket Button (Completar) Styles */
+    pendingFooterTotal: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginBottom: 14,
+        paddingHorizontal: 2,
+    },
+    pendingTotalLabel: {
+        fontSize: 14,
+        color: theme.colors.textMuted,
+        fontWeight: '600',
+    },
     completeOrderBtn: {
         backgroundColor: '#10B981',
         flexDirection: 'row',
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 14,
-        gap: 6,
+        paddingVertical: 14,
+        borderRadius: 16,
+        gap: 8,
         shadowColor: '#10B981',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.3,
         shadowRadius: 8,
-        elevation: 3,
+        elevation: 4,
     },
     completeOrderText: {
         color: '#FFF',
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '800',
     },
     /* Past Orders Styles */

@@ -2,39 +2,46 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { featuredLunches, featuredBreakfasts, snacks } from '../data/mockData';
 import { ProductCard } from '../components/ProductCard';
 import { theme } from '../theme/theme';
+import { useProducts } from '../hooks/useApi.js';
+import { FloatingCheckout } from '../components/FloatingCheckout';
 
 export const LunchesScreen = ({ navigation }) => {
+    const { products: allAlmuerzos, loading: loadingAlmuerzos } = useProducts({ type: 'lunch' });
+    const { products: allDesayunos, loading: loadingDesayunos } = useProducts({ type: 'breakfast' });
+    const { products: allSnacks, loading: loadingSnacks } = useProducts({ type: 'snack' });
+
     const [mealType, setMealType] = useState('Almuerzos'); // 'Almuerzos' o 'Desayunos'
     const [quantities, setQuantities] = useState({});
 
     const handleAdd = (item) => {
+        const id = item._id || item.id;
         setQuantities(prev => ({
             ...prev,
-            [item.id]: (prev[item.id] || 0) + 1
+            [id]: (prev[id] || 0) + 1
         }));
     };
 
     const handleRemove = (item) => {
+        const id = item._id || item.id;
         setQuantities(prev => {
             const newQuantities = { ...prev };
-            if (newQuantities[item.id] > 1) {
-                newQuantities[item.id] -= 1;
+            if (newQuantities[id] > 1) {
+                newQuantities[id] -= 1;
             } else {
-                delete newQuantities[item.id];
+                delete newQuantities[id];
             }
             return newQuantities;
         });
     };
 
     const handleToggle = (item) => {
-        if (quantities[item.id]) {
-            // Already selected — deselect by removing
+        const id = item._id || item.id;
+        if (quantities[id]) {
             setQuantities(prev => {
                 const next = { ...prev };
-                delete next[item.id];
+                delete next[id];
                 return next;
             });
         } else {
@@ -64,14 +71,15 @@ export const LunchesScreen = ({ navigation }) => {
     
     Object.keys(quantities).forEach(id => {
         const qty = quantities[id];
-        const product = [...featuredLunches, ...featuredBreakfasts, ...snacks].find(p => p.id === id);
+        const product = [...allAlmuerzos, ...allDesayunos, ...allSnacks].find(p => (p._id || p.id) === id);
         if (product) {
             total += product.price * qty;
             totalItems += qty;
         }
     });
 
-    const currentMenu = mealType === 'Almuerzos' ? featuredLunches : featuredBreakfasts;
+    const currentMenu = mealType === 'Almuerzos' ? allAlmuerzos : allDesayunos;
+    const isLoading = mealType === 'Almuerzos' ? loadingAlmuerzos : loadingDesayunos;
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -107,11 +115,13 @@ export const LunchesScreen = ({ navigation }) => {
                     <Text style={styles.sectionTitle}>Menú del Día</Text>
                     <Text style={styles.sectionSubtitle}>Explora nuestras opciones de {mealType.toLowerCase()}</Text>
                     
-                    {currentMenu.map((item) => (
-                        <View key={item.id} style={styles.itemWrapper}>
+                    {isLoading ? (
+                        <Text style={styles.emptyText}>Cargando menú...</Text>
+                    ) : currentMenu.map((item) => (
+                        <View key={item._id || item.id} style={styles.itemWrapper}>
                             <ProductCard 
                                 item={item} 
-                                quantity={quantities[item.id] || 0}
+                                quantity={quantities[item._id || item.id] || 0}
                                 onPress={() => handleToggle(item)}
                                 onAdd={() => handleAdd(item)}
                                 onRemove={() => handleRemove(item)}
@@ -124,11 +134,13 @@ export const LunchesScreen = ({ navigation }) => {
                     <Text style={styles.sectionTitle}>Acompañamientos</Text>
                     <Text style={styles.sectionSubtitle}>Para complementar tu almuerzo</Text>
 
-                    {snacks.map((item) => (
-                        <View key={item.id} style={styles.itemWrapper}>
+                    {loadingSnacks ? (
+                        <Text style={styles.emptyText}>Cargando acompañamientos...</Text>
+                    ) : allSnacks.map((item) => (
+                        <View key={item._id || item.id} style={styles.itemWrapper}>
                             <ProductCard 
                                 item={item} 
-                                quantity={quantities[item.id] || 0}
+                                quantity={quantities[item._id || item.id] || 0}
                                 onPress={() => handleToggle(item)}
                                 onAdd={() => handleAdd(item)}
                                 onRemove={() => handleRemove(item)}
@@ -139,35 +151,26 @@ export const LunchesScreen = ({ navigation }) => {
             </ScrollView>
 
             {/* Floating order button - same style as SnacksScreen */}
-            {totalItems > 0 && (
-                <View style={styles.floatingContainer}>
-                    <TouchableOpacity 
-                        style={styles.checkoutBtn} 
-                        activeOpacity={0.9} 
-                        onPress={() => {
-                            const selectedItems = Object.keys(quantities)
-                                .map(id => {
-                                    const product = [...featuredLunches, ...featuredBreakfasts, ...snacks].find(p => p.id === id);
-                                    return product ? { ...product, quantity: quantities[id] } : null;
-                                })
-                                .filter(Boolean);
-                            navigation.navigate('Pedidos', { 
-                                incomingItems: selectedItems, 
-                                source: mealType,
-                                orderId: Date.now()
-                            });
-                        }}
-                    >
-                        <View style={styles.checkoutInfo}>
-                            <View style={styles.checkoutBadge}>
-                                <Text style={styles.checkoutBadgeText}>{totalItems}</Text>
-                            </View>
-                            <Text style={styles.checkoutText}>Ver Pedido</Text>
-                        </View>
-                        <Text style={styles.checkoutTotal}>${total.toFixed(2)}</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+            <FloatingCheckout 
+                totalItems={totalItems}
+                totalPrice={total}
+                onCheckout={() => {
+                    const selectedItems = Object.keys(quantities)
+                        .map(id => {
+                            const product = [...allAlmuerzos, ...allDesayunos, ...allSnacks].find(p => (p._id || p.id) === id);
+                            return product ? { ...product, quantity: quantities[id] } : null;
+                        })
+                        .filter(Boolean);
+                    navigation.navigate('Pedidos', { 
+                        incomingItems: selectedItems, 
+                        source: mealType,
+                        orderId: Date.now()
+                    });
+                }}
+                onAddSnack={(snack) => handleAdd(snack)}
+                showSuggestions={true}
+                quantities={quantities}
+            />
         </SafeAreaView>
     );
 };
@@ -255,55 +258,5 @@ const styles = StyleSheet.create({
     },
     itemWrapper: {
         marginBottom: theme.spacing.md,
-    },
-    /* Floating Button - same as SnacksScreen */
-    floatingContainer: {
-        position: 'absolute',
-        bottom: 110,
-        left: theme.spacing.lg,
-        right: theme.spacing.lg,
-        backgroundColor: theme.colors.primaryLight,
-        borderRadius: 18,
-        shadowColor: theme.colors.primaryLight,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-        elevation: 8,
-    },
-    checkoutBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-    },
-    checkoutInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    checkoutBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    checkoutBadgeText: {
-        color: '#FFF',
-        fontWeight: '800',
-        fontSize: 15,
-    },
-    checkoutText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    checkoutTotal: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: '900',
-        letterSpacing: 0.5,
     },
 });

@@ -78,8 +78,8 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
             C ${cx - curveWidth / 2} 0, ${cx - curveWidth / 2} ${R}, ${cx} ${R}
             C ${cx + curveWidth / 2} ${R}, ${cx + curveWidth / 2} 0, ${cx + curveWidth} 0
             L ${width} 0
-            L ${width} ${TAB_BAR_HEIGHT}
-            L 0 ${TAB_BAR_HEIGHT}
+            L ${width} ${TAB_BAR_HEIGHT + 12}
+            L 0 ${TAB_BAR_HEIGHT + 12}
             Z
         `;
     };
@@ -87,7 +87,7 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
     return (
         <View style={styles.container}>
             <View style={styles.svgContainer}>
-                <Svg width={width} height={TAB_BAR_HEIGHT} style={styles.shadow}>
+                <Svg width={width} height={TAB_BAR_HEIGHT + 12} style={styles.shadow}>
                     <Path
                         d={getPath()}
                         fill="#1A202C" // Dark grey/black matching the image design
@@ -132,15 +132,16 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         width: width,
-        height: TAB_BAR_HEIGHT + 35, // Give extra height so the floating icon doesn't clip
+        height: TAB_BAR_HEIGHT + 35 + 12, // Extra height for gesture line padding
         backgroundColor: 'transparent',
         justifyContent: 'flex-end',
+        paddingBottom: 12, // Lift above system gesture navigation line
     },
     svgContainer: {
         position: 'absolute',
         bottom: 0,
         width: width,
-        height: TAB_BAR_HEIGHT,
+        height: TAB_BAR_HEIGHT + 12, // Extends to screen edge to fill gesture area
     },
     shadow: {
         // SVG styling

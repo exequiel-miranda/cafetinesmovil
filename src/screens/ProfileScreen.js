@@ -3,11 +3,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { orders } from '../data/mockData';
+import { useOrders } from '../hooks/useApi.js';
+import { useAuth } from '../context/AuthContext';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export const ProfileScreen = () => {
+    const { orders: allOrders, loading } = useOrders();
+    const { logout } = useAuth();
     const [activeModal, setActiveModal] = useState(null);
     const [modalVisible, setModalVisible] = useState(false);
 
@@ -64,10 +67,10 @@ export const ProfileScreen = () => {
         { id: '5', title: 'Ayuda y Soporte', icon: 'help-circle-outline', color: '#F59E0B' },
     ];
 
-    const pastOrders = orders.filter(o => !o.isActive);
+    const pastOrders = allOrders.filter(o => o.status === 'Entregado' || o.status === 'Cancelado' || !o.isActive);
 
     const renderPastOrder = (item) => (
-        <TouchableOpacity key={item.id} style={styles.pastOrderCard} activeOpacity={0.7}>
+        <TouchableOpacity key={item._id || item.id} style={styles.pastOrderCard} activeOpacity={0.7}>
             <View style={styles.pastOrderHeader}>
                 <View style={styles.pastOrderDateContainer}>
                     <Ionicons name="calendar-outline" size={16} color={theme.colors.textMuted} />
@@ -158,6 +161,7 @@ export const ProfileScreen = () => {
                 visible={modalVisible}
                 animationType="none"
                 transparent={true}
+                statusBarTranslucent={true}
                 onRequestClose={closeModal}
             >
                 <View style={styles.modalOverlay}>
@@ -209,7 +213,12 @@ export const ProfileScreen = () => {
                                             </Text>
                                             <TouchableOpacity
                                                 style={[styles.modalActionBtn, activeModal.title === 'Cerrar Sesión' && { backgroundColor: '#EF4444' }]}
-                                                onPress={closeModal}
+                                                onPress={async () => {
+                                                    if (activeModal.title === 'Cerrar Sesión') {
+                                                        await logout();
+                                                    }
+                                                    closeModal();
+                                                }}
                                             >
                                                 <Text style={styles.modalActionText}>
                                                     {activeModal.title === 'Cerrar Sesión' ? 'Cerrar Sesión' : 'Entendido'}

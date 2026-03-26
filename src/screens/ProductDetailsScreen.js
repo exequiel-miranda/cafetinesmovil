@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { CustomButton } from '../components/CustomButton';
+import { useProducts } from '../hooks/useApi.js';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 const { height } = Dimensions.get('window');
@@ -12,26 +13,46 @@ export const ProductDetailsScreen = ({ route, navigation }) => {
     const { product } = route.params;
     const insets = useSafeAreaInsets();
     const [quantity, setQuantity] = useState(1);
+    const { products: allSnacks, loading: loadingSnacks } = useProducts({ type: 'snack' });
+    const [selectedSnacks, setSelectedSnacks] = useState({}); // { snackId: quantity }
 
     const increment = () => setQuantity(prev => prev + 1);
     const decrement = () => setQuantity(prev => (prev > 1 ? prev - 1 : 1));
 
+    const toggleSnack = (snack) => {
+        const id = snack._id || snack.id;
+        setSelectedSnacks(prev => {
+            const next = { ...prev };
+            if (next[id]) {
+                delete next[id];
+            } else {
+                next[id] = 1;
+            }
+            return next;
+        });
+    };
+
     const handleAddToCart = () => {
-        if (product.categoryId === '2') {
-            // Logic for "Crear Pedido" for Combos (Nested navigation)
-            navigation.navigate('MainTabs', {
-                screen: 'Pedidos',
-                params: {
-                    incomingItems: [{ ...product, quantity }],
-                    source: 'ProductDetails',
-                    orderId: Date.now()
-                }
-            });
-        } else {
-            // Standard "Add to Cart" logic
-            alert(`Añadiste ${quantity}x ${product.name} al carrito`);
-            navigation.goBack();
-        }
+        // Collect all snacks
+        const snacksToInclude = Object.keys(selectedSnacks).map(id => {
+            const snackProduct = allSnacks.find(s => (s._id || s.id) === id);
+            return snackProduct ? { ...snackProduct, quantity: selectedSnacks[id] } : null;
+        }).filter(Boolean);
+
+        const itemsToSend = [
+            { ...product, quantity },
+            ...snacksToInclude
+        ];
+
+        // Navigate to "Pedidos" (OrdersScreen)
+        navigation.navigate('MainTabs', {
+            screen: 'Pedidos',
+            params: {
+                incomingItems: itemsToSend,
+                source: 'ProductDetails',
+                orderId: Date.now()
+            }
+        });
     };
 
     return (
@@ -114,6 +135,45 @@ export const ProductDetailsScreen = ({ route, navigation }) => {
                             </TouchableOpacity>
                         </View>
                     </View>
+
+                    {/* Snack Suggestions Section - Only if lunch/breakfast */}
+                    {(product.type === 'lunch' || product.type === 'breakfast' || product.categoryId === '2') && (
+                        <View style={styles.snackSection}>
+                            <View style={styles.divider} />
+                            <Text style={styles.sectionTitle}>Complementa tu comida</Text>
+                            <Text style={styles.sectionSubtitle}>¿Deseas agregar una bebida o snack?</Text>
+                            
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.snackScroll}>
+                                {loadingSnacks ? (
+                                    <Text style={styles.loadingText}>Cargando opciones...</Text>
+                                ) : allSnacks.slice(0, 6).map((snack) => {
+                                    const id = snack._id || snack.id;
+                                    const isSelected = !!selectedSnacks[id];
+                                    return (
+                                        <TouchableOpacity 
+                                            key={id} 
+                                            style={[styles.snackCard, isSelected && styles.snackCardSelected]}
+                                            onPress={() => toggleSnack(snack)}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Image source={{ uri: snack.image }} style={styles.snackImage} />
+                                            <View style={styles.snackInfo}>
+                                                <Text style={styles.snackName} numberOfLines={1}>{snack.name}</Text>
+                                                <Text style={styles.snackPrice}>+${snack.price.toFixed(2)}</Text>
+                                            </View>
+                                            <View style={[styles.snackCheck, isSelected && styles.snackCheckActive]}>
+                                                <Ionicons 
+                                                    name={isSelected ? "checkmark" : "add"} 
+                                                    size={16} 
+                                                    color={isSelected ? "#FFF" : theme.colors.primary} 
+                                                />
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+                        </View>
+                    )}
 
                 </View>
             </ScrollView>
@@ -251,6 +311,68 @@ const styles = StyleSheet.create({
         fontWeight: theme.typography.weights.bold,
         color: theme.colors.text,
         paddingHorizontal: theme.spacing.lg,
+    },
+    snackSection: {
+        marginTop: theme.spacing.sm,
+    },
+    sectionSubtitle: {
+        fontSize: theme.typography.sizes.sm,
+        color: theme.colors.textMuted,
+        marginBottom: theme.spacing.md,
+    },
+    snackScroll: {
+        paddingRight: theme.spacing.xl,
+        gap: theme.spacing.md,
+    },
+    snackCard: {
+        width: 130,
+        backgroundColor: theme.colors.background,
+        borderRadius: 16,
+        padding: 8,
+        borderWidth: 1.5,
+        borderColor: 'transparent',
+        position: 'relative',
+    },
+    snackCardSelected: {
+        borderColor: theme.colors.primary,
+        backgroundColor: '#EFF6FF',
+    },
+    snackImage: {
+        width: '100%',
+        height: 80,
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    snackName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: theme.colors.text,
+    },
+    snackPrice: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: theme.colors.primary,
+        marginTop: 2,
+    },
+    snackCheck: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#FFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.small,
+    },
+    snackCheckActive: {
+        backgroundColor: theme.colors.primary,
+    },
+    loadingText: {
+        color: theme.colors.textMuted,
+        fontStyle: 'italic',
+        marginTop: 10,
     },
     bottomBar: {
         position: 'absolute',
