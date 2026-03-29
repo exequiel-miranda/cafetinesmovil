@@ -4,7 +4,56 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { useProducts } from '../hooks/useApi';
 
-export const FloatingCheckout = ({ totalItems, totalPrice, onCheckout, onAddSnack, showSuggestions = true, quantities = {} }) => {
+const SnackCard = React.memo(({ snack, quantity, onAdd, onRemove }) => {
+    return (
+        <TouchableOpacity
+            style={[styles.snackCard, quantity > 0 && styles.snackCardSelected]}
+            onPress={() => quantity === 0 && onAdd(snack)}
+            activeOpacity={0.85}
+        >
+            <View style={styles.imageContainer}>
+                <Image source={{ uri: snack.image }} style={styles.snackImage} />
+                
+                {quantity === 0 ? (
+                    <TouchableOpacity 
+                        style={styles.miniAddBtn} 
+                        onPress={() => onAdd(snack)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                        <Ionicons name="add" size={22} color={theme.colors.primaryLight} />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.integratedControlsContainer}>
+                        <TouchableOpacity 
+                            style={styles.integratedBtn} 
+                            onPress={() => onRemove && onRemove(snack)}
+                            hitSlop={{ top: 15, bottom: 15, left: 15, right: 10 }}
+                        >
+                            <Ionicons name="remove" size={24} color={theme.colors.primaryLight} />
+                        </TouchableOpacity>
+                        
+                        <Text style={styles.integratedQtyText}>{quantity}</Text>
+                        
+                        <TouchableOpacity 
+                            style={styles.integratedBtn} 
+                            onPress={() => onAdd(snack)}
+                            hitSlop={{ top: 15, bottom: 15, left: 10, right: 15 }}
+                        >
+                            <Ionicons name="add" size={24} color={theme.colors.primaryLight} />
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </View>
+            <View style={styles.snackInfo}>
+                <Text style={styles.snackName} numberOfLines={1}>{snack.name}</Text>
+                <Text style={styles.snackPrice}>${snack.price.toFixed(2)}</Text>
+            </View>
+        </TouchableOpacity>
+    );
+});
+
+export const FloatingCheckout = ({ totalItems, totalPrice, onCheckout, onAddSnack, onRemoveSnack, showSuggestions = true, quantities = {} }) => {
     const { products: allSnacks, loading: loadingSnacks } = useProducts({ type: 'snack' });
     const [isExpanded, setIsExpanded] = React.useState(false);
 
@@ -34,29 +83,13 @@ export const FloatingCheckout = ({ totalItems, totalPrice, onCheckout, onAddSnac
                                 <Text style={styles.loadingText}>Buscando complementos...</Text>
                             </View>
                         ) : allSnacks.slice(0, 8).map((snack) => (
-                            <TouchableOpacity
+                            <SnackCard 
                                 key={snack._id || snack.id}
-                                style={styles.snackCard}
-                                onPress={() => onAddSnack(snack)}
-                                activeOpacity={0.85}
-                            >
-                                <View style={styles.imageContainer}>
-                                    <Image source={{ uri: snack.image }} style={styles.snackImage} />
-                                    <View style={styles.plusBadge}>
-                                        {(quantities[snack._id || snack.id] || 0) > 0 ? (
-                                            <Text style={styles.plusBadgeText}>
-                                                {quantities[snack._id || snack.id]}
-                                            </Text>
-                                        ) : (
-                                            <Ionicons name="add" size={16} color="#FFF" />
-                                        )}
-                                    </View>
-                                </View>
-                                <View style={styles.snackInfo}>
-                                    <Text style={styles.snackName} numberOfLines={1}>{snack.name}</Text>
-                                    <Text style={styles.snackPrice}>${snack.price.toFixed(2)}</Text>
-                                </View>
-                            </TouchableOpacity>
+                                snack={snack}
+                                quantity={quantities[snack._id || snack.id] || 0}
+                                onAdd={onAddSnack}
+                                onRemove={onRemoveSnack}
+                            />
                         ))}
                     </ScrollView>
                 </View>
@@ -137,13 +170,23 @@ const styles = StyleSheet.create({
     },
     snackCard: {
         backgroundColor: '#FFF',
-        borderRadius: 18,
-        width: 100,
+        borderRadius: 20,
+        width: 140,
         overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'transparent',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    snackCardSelected: {
+        borderColor: theme.colors.primaryLight,
     },
     imageContainer: {
         width: '100%',
-        height: 70,
+        height: 95,
         position: 'relative',
     },
     snackImage: {
@@ -151,38 +194,62 @@ const styles = StyleSheet.create({
         height: '100%',
         backgroundColor: '#F3F4F6',
     },
-    plusBadge: {
+    miniAddBtn: {
         position: 'absolute',
-        bottom: -10,
+        bottom: 8,
         right: 8,
-        backgroundColor: theme.colors.secondary || '#F59E0B',
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        backgroundColor: '#FFF',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#FFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 3,
         zIndex: 10,
     },
-    plusBadgeText: {
-        color: '#FFF',
-        fontSize: 12,
-        fontWeight: '900',
+    integratedControlsContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 40,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+        paddingHorizontal: 4,
+        zIndex: 10,
     },
-    snackInfo: {
-        padding: 8,
-        paddingTop: 12,
+    integratedBtn: {
+        flex: 1,
+        height: '100%',
+        justifyContent: 'center',
         alignItems: 'center',
     },
+    integratedQtyText: {
+        color: theme.colors.primary,
+        fontSize: 17,
+        fontWeight: '900',
+        minWidth: 24,
+        textAlign: 'center',
+    },
+    snackInfo: {
+        padding: 10,
+        paddingTop: 10,
+        alignItems: 'flex-start',
+    },
     snackName: {
-        fontSize: 10,
+        fontSize: 13,
         fontWeight: '700',
         color: '#374151',
         marginBottom: 2,
     },
     snackPrice: {
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: '900',
         color: theme.colors.primary,
     },

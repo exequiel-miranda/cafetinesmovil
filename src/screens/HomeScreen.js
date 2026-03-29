@@ -6,6 +6,7 @@ import { theme } from '../theme/theme';
 import { useCategories, useFeaturedProducts, useProducts } from '../hooks/useApi';
 import { ProductCard } from '../components/ProductCard';
 import { FloatingCheckout } from '../components/FloatingCheckout';
+import { ProductInfoModal } from '../components/ProductInfoModal';
 
 export const HomeScreen = ({ navigation }) => {
     const { categories, loading: loadingCats } = useCategories();
@@ -13,6 +14,19 @@ export const HomeScreen = ({ navigation }) => {
     
     const [activeCategory, setActiveCategory] = useState('1'); // '1' es 'Todos'
     const [quantities, setQuantities] = useState({});
+    
+    // Info Modal State for Featured
+    const [selectedInfoItem, setSelectedInfoItem] = useState(null);
+    const [infoModalVisible, setInfoModalVisible] = useState(false);
+
+    const openInfoModal = (item) => {
+        setSelectedInfoItem(item);
+        setInfoModalVisible(true);
+    };
+
+    const closeInfoModal = () => {
+        setInfoModalVisible(false);
+    };
 
     // Cargar productos según categoría activa
     const { products: currentProducts, loading: loadingProducts } = useProducts(
@@ -63,11 +77,31 @@ export const HomeScreen = ({ navigation }) => {
     };
 
     const totalHomeItems = Object.values(quantities).reduce((acc, q) => acc + q, 0);
+    
+    // Find product helper to check types
+    const findProduct = (id) => {
+        return [...featuredProducts, ...currentProducts].find(p => (p._id || p.id) === id);
+    };
+
     const totalHomePrice = Object.keys(quantities).reduce((acc, id) => {
         const qty = quantities[id];
-        const item = currentProducts.find(s => (s._id || s.id) === id);
+        const item = findProduct(id);
         return acc + (item ? item.price * qty : 0);
     }, 0);
+
+    // Dynamic showSuggestions: only if there's a lunch or breakfast selected
+    const hasMealSelected = Object.keys(quantities).some(id => {
+        const item = findProduct(id);
+        return item && (item.type === 'lunch' || item.type === 'breakfast' || item.categoryId === '2');
+    });
+
+    // Dynamic source name
+    const getSourceName = () => {
+        const items = Object.keys(quantities).map(id => findProduct(id)).filter(Boolean);
+        if (items.some(i => i.type === 'lunch')) return 'Almuerzo';
+        if (items.some(i => i.type === 'breakfast' || i.categoryId === '2')) return 'Desayuno';
+        return 'Snack';
+    };
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -91,25 +125,49 @@ export const HomeScreen = ({ navigation }) => {
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={styles.horizontalList}
                         >
-                            {featuredProducts.map((item) => (
-                                <TouchableOpacity
-                                    key={item._id || item.id}
-                                    style={styles.featuredCard}
-                                    activeOpacity={0.9}
-                                    onPress={() => navigation.navigate('ProductDetails', { product: item })}
-                                >
-                                    <Image source={{ uri: item.image }} style={styles.featuredImage} />
-                                    <View style={styles.featuredOverlay}>
-                                        <Text style={styles.featuredTitle}>{item.name}</Text>
-                                        <Text style={styles.featuredPrice}>${item.price.toFixed(2)}</Text>
-                                    </View>
-                                    {item.popular && (
-                                        <View style={styles.popularBadge}>
-                                            <Text style={styles.popularBadgeText}>Especial</Text>
+                            {featuredProducts.map((item) => {
+                                const id = item._id || item.id;
+                                const isSelected = (quantities[id] || 0) > 0;
+                                
+                                return (
+                                    <TouchableOpacity
+                                        key={id}
+                                        style={[styles.featuredCard, isSelected && styles.featuredCardSelected]}
+                                        activeOpacity={0.9}
+                                        onPress={() => handleToggle(item)}
+                                    >
+                                        <Image source={{ uri: item.image }} style={styles.featuredImage} />
+                                        <View style={styles.featuredOverlay}>
+                                            <Text style={styles.featuredTitle}>{item.name}</Text>
+                                            <View style={styles.featuredBottomRow}>
+                                                <Text style={styles.featuredPrice}>${item.price.toFixed(2)}</Text>
+                                                {isSelected && (
+                                                    <View style={styles.featuredQtyBadge}>
+                                                        <Text style={styles.featuredQtyText}>x{quantities[id]}</Text>
+                                                    </View>
+                                                )}
+                                            </View>
                                         </View>
-                                    )}
-                                </TouchableOpacity>
-                            ))}
+                                        
+                                        <TouchableOpacity 
+                                            style={styles.featuredInfoBtn}
+                                            onPress={(e) => {
+                                                e.stopPropagation();
+                                                openInfoModal(item);
+                                            }}
+                                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                        >
+                                            <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.9)" />
+                                        </TouchableOpacity>
+
+                                        {item.popular && (
+                                            <View style={styles.popularBadge}>
+                                                <Text style={styles.popularBadgeText}>Especial</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </ScrollView>
                     )}
                 </View>
@@ -156,19 +214,26 @@ export const HomeScreen = ({ navigation }) => {
                 onCheckout={() => {
                     const selectedItems = Object.keys(quantities)
                         .map(id => {
-                            const item = currentProducts.find(s => (s._id || s.id) === id);
+                            const item = findProduct(id);
                             return item ? { ...item, quantity: quantities[id] } : null;
                         })
                         .filter(Boolean);
                     navigation.navigate('Pedidos', {
                         incomingItems: selectedItems,
-                        source: 'Inicio',
+                        source: getSourceName(),
                         orderId: Date.now()
                     });
                 }}
                 onAddSnack={(snack) => handleAdd(snack)}
-                showSuggestions={false}
+                onRemoveSnack={(snack) => handleRemove(snack)}
+                showSuggestions={hasMealSelected}
                 quantities={quantities}
+            />
+
+            <ProductInfoModal
+                visible={infoModalVisible}
+                item={selectedInfoItem}
+                onClose={closeInfoModal}
             />
         </SafeAreaView>
     );
@@ -246,6 +311,11 @@ const styles = StyleSheet.create({
         borderRadius: theme.radius.xl,
         overflow: 'hidden',
         ...theme.shadows.medium,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    featuredCardSelected: {
+        borderColor: theme.colors.primaryLight,
     },
     featuredImage: {
         width: '100%',
@@ -268,7 +338,35 @@ const styles = StyleSheet.create({
         color: theme.colors.secondary,
         fontSize: theme.typography.sizes.md,
         fontWeight: theme.typography.weights.bold,
+    },
+    featuredBottomRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginTop: 4,
+    },
+    featuredQtyBadge: {
+        backgroundColor: theme.colors.primaryLight,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+    },
+    featuredQtyText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    featuredInfoBtn: {
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
     },
     popularBadge: {
         position: 'absolute',

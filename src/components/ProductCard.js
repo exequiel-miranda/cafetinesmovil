@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
+import { ProductInfoModal } from './ProductInfoModal';
 
 export const ProductCard = ({ item, onPress, onAdd, onRemove, quantity = 0, isSelected }) => {
-    const [infoVisible, setInfoVisible] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
+
+    const openModal = () => setModalVisible(true);
+    const closeModal = () => setModalVisible(false);
 
     return (
         <>
@@ -29,12 +33,12 @@ export const ProductCard = ({ item, onPress, onAdd, onRemove, quantity = 0, isSe
                         style={styles.infoBtn}
                         onPress={(e) => {
                             e.stopPropagation();
-                            setInfoVisible(true);
+                            openModal();
                         }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         activeOpacity={0.8}
                     >
-                        <Ionicons name="information-circle" size={22} color="rgba(255,255,255,0.9)" />
+                        <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.9)" />
                     </TouchableOpacity>
                 </View>
 
@@ -59,7 +63,7 @@ export const ProductCard = ({ item, onPress, onAdd, onRemove, quantity = 0, isSe
                                     name={item.categoryId === '2' ? "receipt-outline" : "add"} 
                                     size={20} 
                                     color={theme.colors.primaryLight} 
-                                />
+                                                                />
                             </TouchableOpacity>
                         ) : (
                             <View style={styles.largeQtyControls}>
@@ -77,49 +81,11 @@ export const ProductCard = ({ item, onPress, onAdd, onRemove, quantity = 0, isSe
             </TouchableOpacity>
 
             {/* Info Modal */}
-            <Modal
-                visible={infoVisible}
-                transparent
-                animationType="slide"
-                statusBarTranslucent
-                onRequestClose={() => setInfoVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <Pressable style={styles.modalBackdrop} onPress={() => setInfoVisible(false)} />
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHandle} />
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-                            <Image
-                                source={{ uri: item.image }}
-                                style={styles.modalImage}
-                                resizeMode="cover"
-                            />
-                            <View style={styles.modalBody}>
-                                {item.popular && (
-                                    <View style={styles.modalBadge}>
-                                        <Ionicons name="star" size={12} color="#F59E0B" />
-                                        <Text style={styles.modalBadgeText}>Popular</Text>
-                                    </View>
-                                )}
-                                <Text style={styles.modalTitle}>{item.name}</Text>
-                                <Text style={styles.modalPrice}>${item.price.toFixed(2)}</Text>
-                                {item.description ? (
-                                    <Text style={styles.modalDescription}>{item.description}</Text>
-                                ) : null}
-                                {item.category && (
-                                    <View style={styles.modalCategoryRow}>
-                                        <Ionicons name="pricetag-outline" size={14} color={theme.colors.textMuted} />
-                                        <Text style={styles.modalCategory}>{item.category}</Text>
-                                    </View>
-                                )}
-                            </View>
-                            <TouchableOpacity style={styles.closeBtn} onPress={() => setInfoVisible(false)}>
-                                <Text style={styles.closeBtnText}>Cerrar</Text>
-                            </TouchableOpacity>
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
+            <ProductInfoModal
+                visible={modalVisible}
+                item={item}
+                onClose={closeModal}
+            />
         </>
     );
 };
@@ -162,14 +128,15 @@ const styles = StyleSheet.create({
     },
     infoBtn: {
         position: 'absolute',
-        top: 10,
-        right: 10,
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        borderRadius: 14,
-        width: 28,
-        height: 28,
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 12,
+        width: 24,
+        height: 24,
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 10,
     },
     content: {
         padding: theme.spacing.md,
@@ -253,100 +220,6 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: '900', 
         fontSize: 16,
-    },
-    /* Info Modal */
-    modalOverlay: {
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    modalBackdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalSheet: {
-        backgroundColor: '#FFF',
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
-        paddingBottom: 32,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
-        elevation: 12,
-    },
-    modalHandle: {
-        width: 44,
-        height: 5,
-        backgroundColor: '#E5E7EB',
-        borderRadius: 3,
-        alignSelf: 'center',
-        marginTop: 14,
-        marginBottom: 4,
-    },
-    modalContent: {
-        paddingBottom: 8,
-    },
-    modalImage: {
-        width: '100%',
-        height: 220,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-    },
-    modalBody: {
-        paddingHorizontal: 24,
-        paddingTop: 20,
-    },
-    modalBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: '#FFFBEB',
-        alignSelf: 'flex-start',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 10,
-        marginBottom: 10,
-    },
-    modalBadgeText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#92400E',
-    },
-    modalTitle: {
-        fontSize: 24,
-        fontWeight: '900',
-        color: '#111827',
-        marginBottom: 6,
-    },
-    modalPrice: {
-        fontSize: 28,
-        fontWeight: '900',
-        color: theme.colors.primary,
-        marginBottom: 14,
-    },
-    modalDescription: {
-        fontSize: 15,
-        color: '#6B7280',
-        lineHeight: 24,
-        marginBottom: 16,
-    },
-    modalCategoryRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    modalCategory: {
-        fontSize: 14,
-        color: theme.colors.textMuted,
-        fontWeight: '600',
-    },
-    closeBtn: {
-        marginHorizontal: 24,
-        marginTop: 20,
-        paddingVertical: 14,
-        borderRadius: 16,
-        backgroundColor: '#F3F4F6',
-        alignItems: 'center',
     },
     closeBtnText: {
         fontSize: 16,

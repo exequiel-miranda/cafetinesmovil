@@ -165,9 +165,9 @@ export const SnacksScreen = ({ navigation }) => {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <Text style={styles.largeTitle}>Snacks</Text>
-                <TouchableOpacity style={styles.profileBtn}>
+                <View style={styles.profileBtn}>
                     <Ionicons name="fast-food" size={28} color={theme.colors.primaryLight} />
-                </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.searchContainer}>
@@ -232,6 +232,7 @@ export const SnacksScreen = ({ navigation }) => {
                     });
                 }}
                 onAddSnack={(snack) => handleAdd(snack)}
+                onRemoveSnack={(snack) => handleRemove(snack)}
                 showSuggestions={false}
                 quantities={quantities}
             />

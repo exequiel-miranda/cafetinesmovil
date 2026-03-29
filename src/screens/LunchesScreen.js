@@ -88,9 +88,9 @@ export const LunchesScreen = ({ navigation }) => {
                     <Text style={styles.largeTitle}>{mealType}</Text>
                     <Text style={styles.headerDate}>{getFormattedDate()}</Text>
                 </View>
-                <TouchableOpacity style={styles.profileBtn}>
+                <View style={styles.profileBtn}>
                     <Ionicons name={mealType === 'Almuerzos' ? "restaurant" : "cafe"} size={28} color={theme.colors.primaryLight} />
-                </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.tabContainer}>
@@ -130,24 +130,7 @@ export const LunchesScreen = ({ navigation }) => {
                     ))}
                 </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Acompañamientos</Text>
-                    <Text style={styles.sectionSubtitle}>Para complementar tu almuerzo</Text>
 
-                    {loadingSnacks ? (
-                        <Text style={styles.emptyText}>Cargando acompañamientos...</Text>
-                    ) : allSnacks.map((item) => (
-                        <View key={item._id || item.id} style={styles.itemWrapper}>
-                            <ProductCard 
-                                item={item} 
-                                quantity={quantities[item._id || item.id] || 0}
-                                onPress={() => handleToggle(item)}
-                                onAdd={() => handleAdd(item)}
-                                onRemove={() => handleRemove(item)}
-                            />
-                        </View>
-                    ))}
-                </View>
             </ScrollView>
 
             {/* Floating order button - same style as SnacksScreen */}
@@ -168,6 +151,7 @@ export const LunchesScreen = ({ navigation }) => {
                     });
                 }}
                 onAddSnack={(snack) => handleAdd(snack)}
+                onRemoveSnack={(snack) => handleRemove(snack)}
                 showSuggestions={true}
                 quantities={quantities}
             />

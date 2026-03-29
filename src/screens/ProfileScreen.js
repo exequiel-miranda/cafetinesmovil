@@ -115,9 +115,9 @@ export const ProfileScreen = () => {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <Text style={styles.largeTitle}>Mi Perfil</Text>
-                <TouchableOpacity style={styles.settingsBtn}>
+                <View style={styles.settingsBtn}>
                     <Ionicons name="notifications-outline" size={28} color={theme.colors.primaryLight} />
-                </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
