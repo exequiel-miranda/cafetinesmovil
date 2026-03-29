@@ -116,7 +116,7 @@ export const ProfileScreen = () => {
             <View style={styles.header}>
                 <Text style={styles.largeTitle}>Mi Perfil</Text>
                 <View style={styles.settingsBtn}>
-                    <Ionicons name="notifications-outline" size={28} color={theme.colors.primaryLight} />
+                    <Ionicons name="person" size={28} color={theme.colors.primaryLight} />
                 </View>
             </View>
 

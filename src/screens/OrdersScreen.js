@@ -78,7 +78,7 @@ export const OrdersScreen = ({ route, navigation }) => {
                 total: orderInPayment.total,
                 source: orderInPayment.source,
                 paymentMethod: method,
-                status: method === 'Efectivo' ? 'Esperando pago' : 'En Preparación'
+                status: method?.toLowerCase() === 'efectivo' ? 'Esperando pago' : ''
             };
 
             const response = await apiService.createOrder(orderData);
@@ -201,9 +201,9 @@ export const OrdersScreen = ({ route, navigation }) => {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <Text style={styles.largeTitle}>Mis Pedidos</Text>
-                <TouchableOpacity style={styles.profileBtn}>
+                <View style={styles.profileBtn}>
                     <Ionicons name="receipt" size={28} color={theme.colors.primaryLight} />
-                </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -288,12 +288,14 @@ export const OrdersScreen = ({ route, navigation }) => {
                                                     <Text style={styles.confirmedBadgeText}>CONFIRMADO</Text>
                                                 </View>
                                             </View>
-                                            <View style={styles.statusRow}>
-                                                <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
-                                                <Text style={[styles.activeStatusText, { color: statusColor }]}>
-                                                    {order.status}
-                                                </Text>
-                                            </View>
+                                            {order.status ? (
+                                                <View style={styles.statusRow}>
+                                                    <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
+                                                    <Text style={[styles.activeStatusText, { color: statusColor }]}>
+                                                        {order.status}
+                                                    </Text>
+                                                </View>
+                                            ) : null}
                                         </View>
                                     </View>
 
@@ -559,7 +561,9 @@ export const OrdersScreen = ({ route, navigation }) => {
                                     <Ionicons name="qr-code" size={120} color={theme.colors.text} />
                                     <Text style={styles.ticketId}>Pedido #{selectedOrder.orderNumber || selectedOrder._id.slice(-4).toUpperCase()}</Text>
                                     <Text style={styles.expandText}>Toca para agrandar</Text>
-                                    <Text style={styles.ticketStatus}>{selectedOrder.status}</Text>
+                                    {selectedOrder.status ? (
+                                        <Text style={styles.ticketStatus}>{selectedOrder.status}</Text>
+                                    ) : null}
                                 </TouchableOpacity>
                                 
                                 <View style={styles.ticketDivider} />
@@ -609,6 +613,12 @@ export const OrdersScreen = ({ route, navigation }) => {
                         
                         <View style={styles.fullScreenContent}>
                             <View style={styles.fullScreenTopSection} {...fullScreenPanResponder.panHandlers}>
+                                {(selectedOrder.status === 'Esperando pago' || selectedOrder.status === 'Pendiente de pago') && (
+                                    <View style={{ backgroundColor: '#FEF3C7', paddingVertical: 16, paddingHorizontal: 24, borderRadius: 20, marginBottom: 32, width: '90%', alignItems: 'center', borderWidth: 2, borderColor: '#FDE68A' }}>
+                                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#D97706', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pago Pendiente</Text>
+                                        <Text style={{ fontSize: 44, fontWeight: '900', color: '#B45309' }}>${selectedOrder.total.toFixed(2)}</Text>
+                                    </View>
+                                )}
                                 <Text style={styles.fullScreenLabel}>PEDIDO</Text>
                                 <Text style={styles.fullScreenNumber} adjustsFontSizeToFit numberOfLines={1}>
                                     {selectedOrder.orderNumber || selectedOrder._id.slice(-4).toUpperCase()}
@@ -1006,10 +1016,19 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     ticketId: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
-        marginTop: 12,
+        fontSize: 32,
+        fontWeight: '900',
+        color: theme.colors.primary,
+        marginTop: 20,
+        marginBottom: 8,
+        letterSpacing: 1,
+        borderWidth: 2,
+        borderColor: theme.colors.primaryLight,
+        borderRadius: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        backgroundColor: '#EFF6FF',
+        overflow: 'hidden',
     },
     ticketStatus: {
         fontSize: 16,

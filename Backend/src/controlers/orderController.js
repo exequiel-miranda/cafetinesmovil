@@ -34,12 +34,23 @@ export const create = async (req, res) => {
 
         const calculatedTotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
+        let orderStatus = req.body.status;
+        if (!orderStatus && orderStatus !== '') {
+            if (paymentMethod?.toLowerCase() === 'tarjeta') {
+                orderStatus = '';
+            } else if (paymentMethod) {
+                orderStatus = 'Esperando pago';
+            } else {
+                orderStatus = 'Pendiente de pago';
+            }
+        }
+
         const order = new Order({
             items,
             total: total ?? calculatedTotal,
             source: source ?? 'Inicio',
             paymentMethod: paymentMethod ?? null,
-            status: paymentMethod ? 'Esperando pago' : 'Pendiente de pago',
+            status: orderStatus,
         });
 
         await order.save();

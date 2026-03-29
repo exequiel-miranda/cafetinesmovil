@@ -24,10 +24,10 @@ const orderSchema = new mongoose.Schema({
         required: true,
         min: 0,
     },
-    // 'Pendiente de pago' | 'Esperando pago' | 'En Preparación' | 'Listo' | 'Entregado' | 'Cancelado'
+    // 'Pendiente de pago' | 'Esperando pago' | 'En Preparación' | 'Listo' | 'Entregado' | 'Cancelado' | ''
     status: {
         type: String,
-        enum: ['Pendiente de pago', 'Esperando pago', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'],
+        enum: ['Pendiente de pago', 'Esperando pago', 'En Preparación', 'Listo', 'Entregado', 'Cancelado', ''],
         default: 'Pendiente de pago',
     },
     // 'Efectivo' | 'Tarjeta'

@@ -65,9 +65,11 @@ export const FloatingCheckout = ({ totalItems, totalPrice, onCheckout, onAddSnac
             {showSuggestions && isExpanded && (
                 <View style={styles.snackSuggestionSection}>
                     <View style={styles.sectionHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, paddingRight: 10 }}>
                             <Ionicons name="fast-food" size={18} color="#FFF" />
-                            <Text style={styles.snackSuggestionTitle}>¿Deseas acompañar tu pedido?</Text>
+                            <Text style={styles.snackSuggestionTitle} numberOfLines={1} adjustsFontSizeToFit>
+                                ¿Acompañar tu pedido?
+                            </Text>
                         </View>
                         <TouchableOpacity onPress={() => setIsExpanded(false)}>
                             <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.6)" />
@@ -99,12 +101,15 @@ export const FloatingCheckout = ({ totalItems, totalPrice, onCheckout, onAddSnac
             <View style={styles.buttonArea}>
                 {showSuggestions && !isExpanded && (
                     <TouchableOpacity
-                        style={styles.suggestionToggle}
+                        style={styles.suggestionToggleFull}
                         onPress={() => setIsExpanded(true)}
                         activeOpacity={0.7}
                     >
-                        <Ionicons name="fast-food" size={16} color="#FFF" />
-                        <Text style={styles.suggestionToggleText}>Agregar</Text>
+                        <View style={styles.checkoutInfo}>
+                            <Ionicons name="fast-food" size={20} color="#FFF" style={{ marginRight: 10 }} />
+                            <Text style={styles.checkoutText}>Agregar complementos</Text>
+                        </View>
+                        <Ionicons name="add-circle" size={24} color="#FFF" />
                     </TouchableOpacity>
                 )}
 
@@ -117,7 +122,7 @@ export const FloatingCheckout = ({ totalItems, totalPrice, onCheckout, onAddSnac
                         <View style={styles.checkoutBadge}>
                             <Text style={styles.checkoutBadgeText}>{totalItems}</Text>
                         </View>
-                        <Text style={styles.checkoutText}>Realizar pedido</Text>
+                        <Text style={styles.checkoutText} numberOfLines={1}>Realizar pedido</Text>
                     </View>
                     <View style={styles.totalContainer}>
                         <Text style={styles.checkoutTotal}>${totalPrice.toFixed(2)}</Text>
@@ -162,7 +167,8 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#FFF',
         textTransform: 'uppercase',
-        letterSpacing: 0.8,
+        letterSpacing: 0.5,
+        flexShrink: 1,
     },
     snackScroll: {
         gap: 12,
@@ -254,36 +260,31 @@ const styles = StyleSheet.create({
         color: theme.colors.primary,
     },
     buttonArea: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: 'column',
         paddingHorizontal: 4,
+        gap: 2, 
     },
-    suggestionToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 20,
-        marginRight: 8,
-        gap: 6,
-    },
-    suggestionToggleText: {
-        color: '#FFF',
-        fontSize: 12,
-        fontWeight: '800',
-    },
-    checkoutBtn: {
-        flex: 1,
+    suggestionToggleFull: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 14,
-        paddingHorizontal: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+    },
+    checkoutBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 20,
     },
     checkoutInfo: {
         flexDirection: 'row',
         alignItems: 'center',
+        flexShrink: 1,
     },
     checkoutBadge: {
         backgroundColor: 'rgba(255, 255, 255, 0.25)',
@@ -301,16 +302,18 @@ const styles = StyleSheet.create({
     },
     checkoutText: {
         color: '#FFF',
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '800',
+        flexShrink: 1,
     },
     totalContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        flexShrink: 0,
     },
     checkoutTotal: {
         color: '#FFF',
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '900',
     },
     loadingContainer: {

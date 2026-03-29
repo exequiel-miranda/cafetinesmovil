@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { useProducts } from '../hooks/useApi.js';
 import { FloatingCheckout } from '../components/FloatingCheckout';
+import { ProductInfoModal } from '../components/ProductInfoModal';
 
 export const SnacksScreen = ({ navigation }) => {
     const { products: snacks, loading: loadingSnacks } = useProducts({ type: 'snack' });
@@ -12,6 +13,19 @@ export const SnacksScreen = ({ navigation }) => {
     
     const [searchQuery, setSearchQuery] = useState('');
     const [quantities, setQuantities] = useState({});
+    
+    // Preview Modal State
+    const [selectedInfoItem, setSelectedInfoItem] = useState(null);
+    const [infoModalVisible, setInfoModalVisible] = useState(false);
+
+    const openInfoModal = (item) => {
+        setSelectedInfoItem(item);
+        setInfoModalVisible(true);
+    };
+
+    const closeInfoModal = () => {
+        setInfoModalVisible(false);
+    };
 
     const handleAdd = (item) => {
         const id = item._id || item.id;
@@ -77,7 +91,19 @@ export const SnacksScreen = ({ navigation }) => {
                 style={[styles.snackCard, qty > 0 && styles.cardSelected]}
                 onPress={() => handleToggle(item)}
             >
-                <Image source={{ uri: item.image }} style={styles.snackImage} />
+                <View style={styles.snackImageContainer}>
+                    <Image source={{ uri: item.image }} style={styles.snackImage} />
+                    <TouchableOpacity 
+                        style={styles.discreteInfoBtn}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            openInfoModal(item);
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.9)" />
+                    </TouchableOpacity>
+                </View>
                 <View style={styles.snackInfo}>
                     <Text style={styles.snackTitle} numberOfLines={2}>{item.name}</Text>
                     <View style={styles.snackFooter}>
@@ -121,7 +147,19 @@ export const SnacksScreen = ({ navigation }) => {
                 style={[styles.listCard, qty > 0 && styles.cardSelected]}
                 onPress={() => item.categoryId === '2' ? navigation.navigate('ProductDetails', { product: item }) : handleToggle(item)}
             >
-                <Image source={{ uri: item.image }} style={styles.listImage} />
+                <View style={styles.listImageContainer}>
+                    <Image source={{ uri: item.image }} style={styles.listImage} />
+                    <TouchableOpacity 
+                        style={styles.listInfoBtn}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            openInfoModal(item);
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons name="information-circle-outline" size={18} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                </View>
                 <View style={styles.listContent}>
                     <Text style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
                     <Text style={styles.listDescription} numberOfLines={2}>{item.description}</Text>
@@ -230,11 +268,18 @@ export const SnacksScreen = ({ navigation }) => {
                         source: 'Snacks',
                         orderId: Date.now()
                     });
+                    setQuantities({});
                 }}
                 onAddSnack={(snack) => handleAdd(snack)}
                 onRemoveSnack={(snack) => handleRemove(snack)}
                 showSuggestions={false}
                 quantities={quantities}
+            />
+
+            <ProductInfoModal
+                visible={infoModalVisible}
+                item={selectedInfoItem}
+                onClose={closeInfoModal}
             />
 
 
@@ -334,6 +379,23 @@ const styles = StyleSheet.create({
         height: 180, 
         backgroundColor: '#F3F4F6',
     },
+    snackImageContainer: {
+        position: 'relative',
+        width: '100%',
+        height: 180,
+    },
+    discreteInfoBtn: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
     snackInfo: {
         padding: 18, 
     },
@@ -378,6 +440,23 @@ const styles = StyleSheet.create({
         height: 100,
         borderRadius: 14,
         backgroundColor: '#F3F4F6',
+    },
+    listImageContainer: {
+        position: 'relative',
+        width: 100,
+        height: 100,
+    },
+    listInfoBtn: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
     },
     listContent: {
         flex: 1,

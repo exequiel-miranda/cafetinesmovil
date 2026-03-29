@@ -149,6 +149,7 @@ export const LunchesScreen = ({ navigation }) => {
                         source: mealType,
                         orderId: Date.now()
                     });
+                    setQuantities({});
                 }}
                 onAddSnack={(snack) => handleAdd(snack)}
                 onRemoveSnack={(snack) => handleRemove(snack)}
