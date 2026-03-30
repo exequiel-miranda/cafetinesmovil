@@ -1,0 +1,782 @@
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, FlatList, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme/theme.js';
+import { useProducts } from '../hooks/useApi.js';
+import { FloatingCheckout } from '../components/FloatingCheckout.js';
+import { ProductInfoModal } from '../components/ProductInfoModal.js';
+
+export const SnacksScreen = ({ navigation }) => {
+    const { products: snacks, loading: loadingSnacks } = useProducts({ type: 'snack' });
+    const { products: allProducts, loading: loadingAll } = useProducts(); // Fetch all for search/best sellers
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [quantities, setQuantities] = useState({});
+
+    // Preview Modal State
+    const [selectedInfoItem, setSelectedInfoItem] = useState(null);
+    const [infoModalVisible, setInfoModalVisible] = useState(false);
+
+    const openInfoModal = (item) => {
+        setSelectedInfoItem(item);
+        setInfoModalVisible(true);
+    };
+
+    const closeInfoModal = () => {
+        setInfoModalVisible(false);
+    };
+
+    const handleAdd = (item) => {
+        const id = item._id || item.id;
+        setQuantities(prev => ({
+            ...prev,
+            [id]: (prev[id] || 0) + 1
+        }));
+    };
+
+    const handleRemove = (item) => {
+        const id = item._id || item.id;
+        setQuantities(prev => {
+            const newQuantities = { ...prev };
+            if (newQuantities[id] > 1) {
+                newQuantities[id] -= 1;
+            } else {
+                delete newQuantities[id];
+            }
+            return newQuantities;
+        });
+    };
+
+    const handleToggle = (item) => {
+        const id = item._id || item.id;
+        if (quantities[id]) {
+            setQuantities(prev => { const next = { ...prev }; delete next[id]; return next; });
+        } else {
+            handleAdd(item);
+        }
+    };
+
+    const bestSellers = useMemo(() => {
+        // En el backend '1' es Snacks, '2' es Almuerzos
+        return allProducts.filter(item =>
+            item.popular &&
+            item.categoryId !== '2' &&
+            item.type === 'snack'
+        );
+    }, [allProducts]);
+
+    const filteredSnacks = useMemo(() => {
+        if (!searchQuery) return snacks;
+        return snacks.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [searchQuery, snacks]);
+
+    const selectedItemsList = useMemo(() => {
+        return allProducts
+            .filter(item => quantities[item._id || item.id])
+            .map(item => ({ ...item, quantity: quantities[item._id || item.id] }));
+    }, [quantities, allProducts]);
+
+    const totalOrderPrice = selectedItemsList.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const totalItemsCount = selectedItemsList.reduce((acc, item) => acc + item.quantity, 0);
+
+    // Horizontal Scroll Card (For Best Sellers)
+    const renderSnackCard = ({ item }) => {
+        const id = item._id || item.id;
+        const qty = quantities[id] || 0;
+
+        return (
+            <TouchableOpacity
+                activeOpacity={1}
+                style={[styles.snackCard, qty > 0 && styles.cardSelected]}
+                onPress={() => handleToggle(item)}
+            >
+                <View style={styles.snackImageContainer}>
+                    <Image source={{ uri: item.image }} style={styles.snackImage} />
+                    <TouchableOpacity
+                        style={styles.discreteInfoBtn}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            openInfoModal(item);
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.9)" />
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.snackInfo}>
+                    <Text style={styles.snackTitle} numberOfLines={2}>{item.name}</Text>
+                    <View style={styles.snackFooter}>
+                        <Text style={styles.snackPrice}>${item.price.toFixed(2)}</Text>
+
+                        {qty === 0 ? (
+                            <TouchableOpacity
+                                style={[styles.largeSelectBtn, { paddingHorizontal: 16 }]}
+                                onPress={() => handleAdd(item)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.largeSelectBtnText}>Agregar</Text>
+                                <Ionicons name="add" size={20} color={theme.colors.primaryLight} />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.largeQtyControls}>
+                                <TouchableOpacity style={styles.largeQtyBtn} onPress={() => handleRemove(item)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                                    <Ionicons name="remove" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                                <Text style={styles.largeQtyText}>{qty}</Text>
+                                <TouchableOpacity style={styles.largeQtyBtn} onPress={() => handleAdd(item)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                                    <Ionicons name="add" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
+    // Full Width List Card (For "Todos los Snacks")
+    const renderListCard = (item) => {
+        const id = item._id || item.id;
+        const qty = quantities[id] || 0;
+
+        return (
+            <TouchableOpacity
+                key={id}
+                activeOpacity={1}
+                style={[styles.listCard, qty > 0 && styles.cardSelected]}
+                onPress={() => item.categoryId === '2' ? navigation.navigate('ProductDetails', { product: item }) : handleToggle(item)}
+            >
+                <View style={styles.listImageContainer}>
+                    <Image source={{ uri: item.image }} style={styles.listImage} />
+                    <TouchableOpacity
+                        style={styles.listInfoBtn}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            openInfoModal(item);
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons name="information-circle-outline" size={18} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.listContent}>
+                    <Text style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.listDescription} numberOfLines={2}>{item.description}</Text>
+
+                    <View style={styles.listFooter}>
+                        <Text style={styles.listPrice}>${item.price.toFixed(2)}</Text>
+
+                        {qty === 0 ? (
+                            <TouchableOpacity
+                                style={[styles.largeSelectBtn, item.categoryId === '2' && { backgroundColor: '#EEF2FF' }]}
+                                onPress={() => item.categoryId === '2' ? navigation.navigate('ProductDetails', { product: item }) : handleAdd(item)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.largeSelectBtnText, item.categoryId === '2' && { color: '#6366F1' }]}>
+                                    {item.categoryId === '2' ? 'Crear pedido' : 'Agregar'}
+                                </Text>
+                                <Ionicons
+                                    name={item.categoryId === '2' ? "receipt-outline" : "add"}
+                                    size={20}
+                                    color={item.categoryId === '2' ? '#6366F1' : theme.colors.primaryLight}
+                                />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.largeQtyControls}>
+                                <TouchableOpacity style={styles.largeQtyBtn} onPress={() => handleRemove(item)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                                    <Ionicons name="remove" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                                <Text style={styles.largeQtyText}>{qty}</Text>
+                                <TouchableOpacity style={styles.largeQtyBtn} onPress={() => handleAdd(item)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                                    <Ionicons name="add" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
+    return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <View style={styles.header}>
+                <Text style={styles.largeTitle}>Snacks</Text>
+                <View style={styles.profileBtn}>
+                    <Ionicons name="fast-food" size={28} color={theme.colors.primaryLight} />
+                </View>
+            </View>
+
+            <View style={styles.searchContainer}>
+                <View style={styles.searchInner}>
+                    <Ionicons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Quiero pedir..."
+                        placeholderTextColor="#8E8E93"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        clearButtonMode="while-editing"
+                    />
+                </View>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+                {searchQuery === '' && (loadingAll ? (
+                    <Text style={styles.emptyText}>Cargando más vendidos...</Text>
+                ) : bestSellers.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Más Vendidos</Text>
+                        <FlatList
+                            data={bestSellers}
+                            keyExtractor={item => item._id || item.id}
+                            renderItem={renderSnackCard}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                            snapToInterval={276}
+                            decelerationRate="fast"
+                        />
+                    </View>
+                ))}
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>{searchQuery ? 'Resultados' : 'Todos los Snacks'}</Text>
+                    <View style={styles.listContainer}>
+                        {loadingSnacks ? (
+                            <Text style={styles.emptyText}>Cargando snacks...</Text>
+                        ) : filteredSnacks.map(item => renderListCard(item))}
+
+                        {!loadingSnacks && filteredSnacks.length === 0 && (
+                            <View style={styles.emptyStateContainer}>
+                                <Ionicons name="search-outline" size={48} color="#D1D5DB" />
+                                <Text style={styles.emptyText}>No encontramos lo que buscas.</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </ScrollView>
+
+            <FloatingCheckout
+                totalItems={totalItemsCount}
+                totalPrice={totalOrderPrice}
+                onCheckout={() => {
+                    navigation.navigate('Pedidos', {
+                        incomingItems: selectedItemsList,
+                        source: 'Snacks',
+                        orderId: Date.now()
+                    });
+                    setQuantities({});
+                }}
+                onAddSnack={(snack) => handleAdd(snack)}
+                onRemoveSnack={(snack) => handleRemove(snack)}
+                showSuggestions={false}
+                quantities={quantities}
+            />
+
+            <ProductInfoModal
+                visible={infoModalVisible}
+                item={selectedInfoItem}
+                onClose={closeInfoModal}
+            />
+
+
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        paddingHorizontal: theme.spacing.lg,
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.md,
+    },
+    largeTitle: {
+        fontSize: 34,
+        fontWeight: 'bold',
+        color: '#111827',
+        letterSpacing: 0.5,
+    },
+    profileBtn: {
+        backgroundColor: '#EFF6FF',
+        padding: 8,
+        borderRadius: 16,
+    },
+    searchContainer: {
+        paddingHorizontal: theme.spacing.lg,
+        paddingBottom: theme.spacing.lg,
+    },
+    searchInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        height: 48,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    searchIcon: {
+        marginRight: 10,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+        color: '#111827',
+        height: '100%',
+    },
+    scrollContent: {
+        paddingBottom: 140,
+    },
+    section: {
+        marginBottom: theme.spacing.xl,
+    },
+    sectionTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+        paddingHorizontal: theme.spacing.lg,
+        marginBottom: theme.spacing.md,
+    },
+    horizontalList: {
+        paddingHorizontal: theme.spacing.lg,
+        gap: 16,
+    },
+    cardSelected: {
+        borderColor: theme.colors.primaryLight,
+        borderWidth: 2,
+    },
+    /* Horizontal Snack Cards */
+    snackCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        width: 260,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'transparent',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.08,
+        shadowRadius: 14,
+        elevation: 4,
+    },
+    snackImage: {
+        width: '100%',
+        height: 180,
+        backgroundColor: '#F3F4F6',
+    },
+    snackImageContainer: {
+        position: 'relative',
+        width: '100%',
+        height: 180,
+    },
+    discreteInfoBtn: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    snackInfo: {
+        padding: 18,
+    },
+    snackTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#111827',
+        marginBottom: 12,
+        minHeight: 46,
+    },
+    snackFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    snackPrice: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: theme.colors.primaryLight,
+    },
+    /* Full Width List Cards */
+    listContainer: {
+        paddingHorizontal: theme.spacing.lg,
+    },
+    listCard: {
+        flexDirection: 'row',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        marginBottom: 16,
+        padding: 12,
+        borderWidth: 2,
+        borderColor: 'transparent',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
+        alignItems: 'center',
+    },
+    listImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 14,
+        backgroundColor: '#F3F4F6',
+    },
+    listImageContainer: {
+        position: 'relative',
+        width: 100,
+        height: 100,
+    },
+    listInfoBtn: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    listContent: {
+        flex: 1,
+        marginLeft: 16,
+        justifyContent: 'center',
+    },
+    listTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 4,
+    },
+    listDescription: {
+        fontSize: 14,
+        color: '#6B7280',
+        lineHeight: 18,
+        marginBottom: 12,
+    },
+    listFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    listPrice: {
+        fontSize: 19,
+        fontWeight: '900',
+        color: theme.colors.primaryLight,
+    },
+    /* Reused UI Large Add Buttons */
+    largeSelectBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#EFF6FF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 16,
+    },
+    largeSelectBtnText: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: theme.colors.primaryLight,
+        marginRight: 6,
+    },
+    largeQtyControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primaryLight,
+        borderRadius: 16,
+        paddingHorizontal: 6,
+        paddingVertical: 4,
+        width: 120,
+        height: 46,
+        justifyContent: 'space-between',
+    },
+    largeQtyBtn: {
+        paddingHorizontal: 10,
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    largeQtyText: {
+        color: '#FFF',
+        fontWeight: '900',
+        fontSize: 18,
+    },
+    /* Combo Cards Configuration */
+    comboCard: {
+        width: 320,
+        height: 220,
+        borderRadius: 24,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'transparent',
+        backgroundColor: '#FFF',
+    },
+    comboImage: {
+        width: '100%',
+        height: 140,
+    },
+    comboInfo: {
+        padding: 16,
+        backgroundColor: '#FFF',
+    },
+    comboTitle: {
+        color: '#111827',
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 4,
+    },
+    comboPrice: {
+        color: theme.colors.primaryLight,
+        fontSize: 17,
+        fontWeight: '900',
+    },
+    comboAddBtnFloat: {
+        position: 'absolute',
+        top: 14,
+        right: 14,
+        backgroundColor: '#FFF',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 3,
+    },
+    comboQtyControlsFloat: {
+        position: 'absolute',
+        top: 14,
+        right: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primaryLight,
+        borderRadius: 22,
+        padding: 6,
+        height: 46,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    comboQtyValueContainer: {
+        paddingHorizontal: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    comboQtyTextFloat: {
+        color: '#FFF',
+        fontWeight: '900',
+        fontSize: 18,
+    },
+    /* Empty State */
+    emptyStateContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+    },
+    emptyText: {
+        textAlign: 'center',
+        color: '#9CA3AF',
+        marginTop: 12,
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    /* Preview Modal Styles */
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'flex-end',
+    },
+    modalBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    modalContent: {
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        height: '80%',
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    modalDragIndicator: {
+        width: 48,
+        height: 5,
+        backgroundColor: '#E5E7EB',
+        borderRadius: 3,
+        alignSelf: 'center',
+        marginTop: 12,
+        marginBottom: 12,
+    },
+    dragHandle: {
+        width: '100%',
+        alignItems: 'center',
+        paddingTop: 12,
+        paddingBottom: 16,
+    },
+    modalImageContainer: {
+        position: 'relative',
+        width: '100%',
+        height: 240,
+        paddingHorizontal: 20,
+    },
+    modalImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 20,
+    },
+    modalCloseBtn: {
+        position: 'absolute',
+        top: 10,
+        right: 30,
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        padding: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    modalInfoContainer: {
+        paddingHorizontal: 24,
+        paddingTop: 24,
+    },
+    modalHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    modalTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+        flex: 1,
+        marginRight: 10,
+    },
+    modalPrice: {
+        fontSize: 24,
+        fontWeight: '900',
+        color: theme.colors.primaryLight,
+    },
+    modalDescription: {
+        fontSize: 16,
+        color: '#4B5563',
+        lineHeight: 22,
+        marginBottom: 24,
+    },
+    modalItemsSection: {
+        marginTop: 10,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 20,
+        padding: 20,
+    },
+    modalItemsTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 16,
+    },
+    modalItemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalItemIconBg: {
+        backgroundColor: '#EFF6FF',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    modalItemIcon: {
+        fontSize: 22,
+    },
+    modalItemText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    modalBottomActionContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#FFF',
+        paddingHorizontal: 24,
+        paddingTop: 16,
+        paddingBottom: 36, // SafeArea padding
+        borderTopWidth: 1,
+        borderTopColor: '#F3F4F6',
+    },
+    modalAddBtn: {
+        backgroundColor: theme.colors.primaryLight,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 18,
+        borderRadius: 20,
+    },
+    modalAddBtnText: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    modalAddBtnPrice: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: '900',
+    },
+    modalStepperContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primaryLight,
+        borderRadius: 20,
+        height: 60,
+        justifyContent: 'space-between',
+        paddingHorizontal: 8,
+    },
+    modalStepperInnerBtn: {
+        paddingHorizontal: 16,
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalStepperText: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: '800',
+    }
+});

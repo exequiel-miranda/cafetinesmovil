@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "strict": false,
+    "baseUrl": "."
+  },
+  "exclude": [
+    "node_modules",
+    ".expo"
+  ]
+}
