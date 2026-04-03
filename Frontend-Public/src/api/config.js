@@ -3,6 +3,6 @@ import { Platform } from 'react-native';
 // Si usas emulador de Android: 10.0.2.2
 // Si usas emulador de iOS o dispositivo físico en la misma red: Tu IP Local
 // Por defecto usaremos localhost:3000 pero permitimos configurarlo
-export const BASE_URL = 'http://192.168.1.120:3000/api';
+export const BASE_URL = 'http://10.220.76.227:3000/api';
 
 console.log('API Base URL:', BASE_URL);

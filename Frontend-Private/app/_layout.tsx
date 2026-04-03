@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { DrawerProvider } from '@/contexts/DrawerContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import AppDrawer from '@/components/ui/AppDrawer';
 
 const AdminTheme = {
@@ -23,14 +24,17 @@ export const unstable_settings = { anchor: '(tabs)' };
 export default function RootLayout() {
   return (
     <ThemeProvider value={AdminTheme}>
-      <DrawerProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <AppDrawer />
-        <StatusBar style="light" />
-      </DrawerProvider>
+      <AuthProvider>
+        <DrawerProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <AppDrawer />
+          <StatusBar style="light" />
+        </DrawerProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

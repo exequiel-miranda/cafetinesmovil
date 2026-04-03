@@ -24,19 +24,20 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarActiveTintColor: '#7B5CF5',   // vivid purple
-        tabBarInactiveTintColor: '#4A4580', // muted
+        tabBarActiveTintColor: '#FFFFFF',   // Pure white
+        tabBarInactiveTintColor: '#8B7AE0', // Soft purple for inactivity
         tabBarStyle: {
           backgroundColor: '#1A1640',       // card surface
-          borderTopColor: '#2E2A62',
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 85 : 70, // Adjust for iOS safe area
+          borderTopWidth: 0,                // Remove physical border
+          elevation: 0,                     // Remove Android shadow
+          shadowOpacity: 0,                 // Remove iOS shadow
+          height: Platform.OS === 'ios' ? 85 : 70,
           paddingBottom: Platform.OS === 'ios' ? 24 : 12,
-          paddingTop: 8,                    // Add top padding
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: '700',                // Slightly bolder for contrast
           letterSpacing: 0.2,
           marginTop: 2,                     // Positive margin so it doesn't overlap with icons
         },
@@ -77,6 +78,30 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="suppliers"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="live"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="staff"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
@@ -90,11 +115,11 @@ const s = StyleSheet.create({
   },
   activeLine: {
     position: 'absolute',
-    top: -8,                // Sit correctly above the icon based on padding
+    top: -8,                
     width: 32,
-    height: 3,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
+    height: 2,              // Made it thinner
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
   },
   iconWrapper: {
     marginTop: 0,          

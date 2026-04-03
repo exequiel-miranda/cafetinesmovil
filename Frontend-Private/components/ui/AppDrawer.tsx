@@ -2,48 +2,59 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, ScrollView, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useDrawer } from '@/contexts/DrawerContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.75;
 
 const C = {
-  bg:         '#0E0B24',
-  card:       '#1A1640',
-  border:     '#2E2A62',
-  purple:     '#7B5CF5',
-  purpleLight:'#9B7BFF',
-  purpleDim:  'rgba(123,92,245,0.15)',
-  textPri:    '#FFFFFF',
-  textSec:    '#9B96C8',
-  textMut:    '#4A4580',
-  gold:       '#D4AF37',
-  teal:       '#00D2A3',
-  amber:      '#FFB038',
-  rose:       '#FF6B8A',
+  bg: '#0E0B24',
+  card: '#1A1640',
+  border: '#2E2A62',
+  purple: '#7B5CF5',
+  purpleLight: '#9B7BFF',
+  purpleDim: 'rgba(123,92,245,0.15)',
+  textPri: '#FFFFFF',
+  textSec: '#9B96C8',
+  textMut: '#4A4580',
+  gold: '#D4AF37',
+  teal: '#00D2A3',
+  amber: '#FFB038',
+  rose: '#FF6B8A',
 };
 
 const MENU_SECTIONS = [
-  { section: 'Operaciones', items: [
-    { label: 'Dashboard', icon: 'dashboard', color: C.purple },
-    { label: 'Pedidos en Vivo', icon: 'room-service', color: C.teal },
-    { label: 'Menú de Comidas', icon: 'restaurant-menu', color: C.amber },
-    { label: 'Gestión de Menú', icon: 'menu-book', color: C.amber },
-  ]},
-  { section: 'Administración VIP', items: [
-    { label: 'Saldos de Apoderados', icon: 'account-balance-wallet', color: C.gold },
-    { label: 'Reportes Financieros', icon: 'insert-chart', color: C.textPri },
-    { label: 'Proveedores Exclusivos', icon: 'local-shipping', color: C.textPri },
-    { label: 'Staff y Permisos', icon: 'badge', color: C.textPri },
-  ]},
-  { section: 'Sistema', items: [
-    { label: 'Ajustes VIP', icon: 'settings', color: C.textSec },
-    { label: 'Cerrar Sesión', icon: 'logout', color: C.rose }
-  ]}
+  {
+    section: 'Operaciones', items: [
+      { label: 'Dashboard', icon: 'dashboard', color: C.purple },
+      { label: 'Pedidos en Vivo', icon: 'room-service', color: C.teal, href: '/live' },
+      { label: 'Menú de Comidas', icon: 'restaurant-menu', color: C.amber },
+      { label: 'Gestión de Menú', icon: 'menu-book', color: C.amber, href: '/menu-management' },
+    ]
+  },
+  {
+    section: 'Administración VIP', items: [
+      { label: 'Gestión de Categorías', icon: 'category', color: C.teal, href: '/categories' },
+      { label: 'Saldos de Apoderados', icon: 'account-balance-wallet', color: C.gold },
+      { label: 'Reportes Financieros', icon: 'insert-chart', color: C.textPri, href: '/reports' },
+      { label: 'Proveedores', icon: 'local-shipping', color: C.textPri, href: '/suppliers' },
+      { label: 'Staff', icon: 'badge', color: C.textPri, href: '/staff' },
+    ]
+  },
+  {
+    section: 'Sistema', items: [
+      { label: 'Ajustes VIP', icon: 'settings', color: C.textSec, href: '/settings' },
+      { label: 'Cerrar Sesión', icon: 'logout', color: C.rose, action: 'LOGOUT' }
+    ]
+  }
 ];
 
 export default function AppDrawer() {
   const { isOpen, closeDrawer } = useDrawer();
+  const { signOut } = useAuth();
+  const router = useRouter();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets(); // Get dynamic top padding for different phones
@@ -73,15 +84,15 @@ export default function AppDrawer() {
 
       {/* Drawer Panel */}
       <Animated.View style={[s.drawerPanel, { transform: [{ translateX: slideAnim }] }]}>
-        
+
         {/* Dynamic Safe Area Padding */}
         <View style={{ flex: 1, paddingTop: Math.max(insets.top + 10, 40) }}>
-          
+
           {/* Header */}
           <View style={s.drawerHeader}>
-            <TouchableOpacity 
-              style={s.closeIconBtn} 
-              onPress={closeDrawer} 
+            <TouchableOpacity
+              style={s.closeIconBtn}
+              onPress={closeDrawer}
               activeOpacity={0.7}
             >
               <MaterialIcons name="keyboard-arrow-left" size={28} color={C.textPri} />
@@ -97,9 +108,21 @@ export default function AppDrawer() {
             {MENU_SECTIONS.map((section, idx) => (
               <View key={idx} style={s.section}>
                 <Text style={s.sectionTitle}>{section.section}</Text>
-                
+
                 {section.items.map((item, i) => (
-                  <TouchableOpacity key={i} style={s.menuItem} onPress={closeDrawer} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    key={i}
+                    style={s.menuItem}
+                    onPress={() => {
+                      closeDrawer();
+                      if ((item as any).action === 'LOGOUT') {
+                        signOut();
+                      } else if ((item as any).href) {
+                        router.push((item as any).href);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={s.iconBox}>
                       <MaterialIcons name={item.icon as any} size={22} color={item.color} />
                     </View>

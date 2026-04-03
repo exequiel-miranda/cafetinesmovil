@@ -64,3 +64,13 @@ export const update = async (req, res) => {
         res.status(400).json({ ok: false, message: 'Error al actualizar producto', error: error.message });
     }
 };
+// DELETE /api/products/:id
+export const remove = async (req, res) => {
+    try {
+        const product = await Product.findByIdAndDelete(req.params.id);
+        if (!product) return res.status(404).json({ ok: false, message: 'Producto no encontrado' });
+        res.json({ ok: true, message: 'Producto eliminado' });
+    } catch (error) {
+        res.status(500).json({ ok: false, message: 'Error al eliminar producto', error: error.message });
+    }
+};

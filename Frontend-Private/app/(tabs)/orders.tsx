@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, Modal, ActivityIndicator, Alert
 } from 'react-native';
+import { AppModal, AppModalAction } from '@/components/ui/AppModal';
+import { SwipeableSheet } from '@/components/ui/SwipeableSheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,7 +30,7 @@ const C = {
   textMut:    '#4A4580',
 };
 
-type OrderStatus = 'Pendiente de pago' | 'Esperando pago' | 'En Preparación' | 'Listo' | 'Entregado' | 'Cancelado';
+type OrderStatus = 'Pendiente de pago' | 'En Preparación' | 'Listo' | 'Entregado' | 'Cancelado';
 
 interface OrderItem { productId?: string; name: string; quantity: number; price: number; }
 interface Order { 
@@ -41,16 +43,15 @@ interface Order {
     source: string;
     createdAt: string; 
 }
-
+  
 const STATUS_CFG: Record<OrderStatus, { label: string; icon: string; color: string; bg: string; action?: string }> = {
   'Pendiente de pago': { label: 'Por Pagar', icon: 'schedule', color: C.amber, bg: C.amberDim, action: 'Confirmar' },
-  'Esperando pago':    { label: 'Espera', icon: 'schedule', color: C.amber, bg: C.amberDim, action: 'Preparar' },
   'En Preparación':    { label: 'Cocina', icon: 'restaurant', color: C.purple, bg: C.purpleDim, action: 'Marcar Listo' },
   'Listo':             { label: 'Listo', icon: 'check-circle', color: C.teal, bg: C.tealDim, action: 'Entregar' },
   'Entregado':         { label: 'Entregado', icon: 'done-all', color: C.textMut, bg: 'rgba(74,69,128,0.2)' },
   'Cancelado':         { label: 'Anulado', icon: 'cancel', color: C.rose, bg: C.roseDim },
 };
-const FLOW: OrderStatus[] = ['Pendiente de pago', 'Esperando pago', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'];
+const FLOW: OrderStatus[] = ['Pendiente de pago', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'];
 
 export default function OrdersScreen() {
   const { openDrawer } = useDrawer();
@@ -58,6 +59,24 @@ export default function OrdersScreen() {
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
   const [selected, setSelected] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const isFoodOrder = (order: Order) => {
+    return order.source === 'Almuerzos' || order.source === 'Desayunos';
+  };
+
+  const [alert, setAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'confirm';
+    actions: AppModalAction[];
+    icon?: keyof typeof MaterialIcons.glyphMap;
+  }>({ 
+    visible: false, title: '', message: '', type: 'info', actions: [] 
+  });
+
+  const showAlert = (cfg: Omit<typeof alert, 'visible'>) => setAlert({ ...cfg, visible: true });
+  const hideAlert = () => setAlert(p => ({ ...p, visible: false }));
 
   useEffect(() => {
       fetchOrders();
@@ -72,7 +91,12 @@ export default function OrdersScreen() {
           // sort orders by date descending by default
           setOrders(data.sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       } catch (err: any) {
-          console.error("Error cargando pedidos:", err);
+          showAlert({
+            title: 'Error de Red',
+            message: 'No pudimos sincronizar los pedidos en tiempo real.',
+            type: 'error',
+            actions: [{ label: 'Reintentar', onPress: () => { hideAlert(); fetchOrders(); } }]
+          });
       } finally {
           setLoading(false);
       }
@@ -86,25 +110,19 @@ export default function OrdersScreen() {
       return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   };
 
-  const advance = async (id: string, currentStatus: OrderStatus) => {
-    let nextStatus: OrderStatus = currentStatus;
-    
-    // Simple state machine
-    switch(currentStatus) {
-        case 'Pendiente de pago': nextStatus = 'En Preparación'; break; // Assuming confirmation skips 'Esperando pago' directly to kitchen
-        case 'Esperando pago': nextStatus = 'En Preparación'; break;
-        case 'En Preparación': nextStatus = 'Listo'; break;
-        case 'Listo': nextStatus = 'Entregado'; break;
-        default: return; // Do nothing if finished
-    }
-
+  const updateStatus = async (id: string, nextStatus: OrderStatus) => {
     try {
         await apiPatch(`/orders/${id}/status`, { status: nextStatus });
         // Optimistic UI update
         setOrders(prev => prev.map(o => o._id === id ? { ...o, status: nextStatus } : o));
         setSelected(prev => prev?._id === id ? { ...prev, status: nextStatus } : prev);
     } catch (e: any) {
-        Alert.alert('Error', e.message || 'No se pudo actualizar el estado del pedido');
+        showAlert({
+            title: 'Error de Estado',
+            message: 'No se pudo actualizar el progreso del pedido. Intenta de nuevo.',
+            type: 'error',
+            actions: [{ label: 'Cerrar', onPress: hideAlert }]
+        });
     }
   };
 
@@ -132,42 +150,79 @@ export default function OrdersScreen() {
           </View>
         </View>
 
-        {/* Status summary row */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, maxHeight: 90 }} contentContainerStyle={s.statusRow}>
-          {FLOW.map(status => {
-            const cfg = STATUS_CFG[status];
-            const n = countOf(status);
-            return (
-              <View key={status} style={[s.statusCard, { borderColor: cfg.color + '40' }]}>
-                <MaterialIcons name={cfg.icon as any} size={16} color={cfg.color} />
-                <Text style={[s.statusN, { color: cfg.color }]}>{n}</Text>
-                <Text style={s.statusL}>{cfg.label}</Text>
-              </View>
-            );
-          })}
-        </ScrollView>
+        {/* Status summary row - Now also the main filters */}
+        <View style={{ height: 105 }}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={s.statusRow}
+          >
+            {/* "Todas" card */}
+            <TouchableOpacity 
+              activeOpacity={0.8}
+              onPress={() => setFilter('all')}
+              style={[
+                s.statusCard, 
+                filter === 'all' && s.statusCardOn
+              ]}
+            >
+              <LinearGradient 
+                colors={filter === 'all' ? [C.purple, C.purpleLight] : [C.card, C.card]} 
+                style={StyleSheet.absoluteFill} 
+                start={{x:0, y:0}} end={{x:1, y:1}} 
+              />
+              <MaterialIcons 
+                name="apps" 
+                size={18} 
+                color={filter === 'all' ? '#fff' : C.textSec} 
+              />
+              <Text style={[s.statusN, { color: filter === 'all' ? '#fff' : C.textPri }]}>
+                {orders.length}
+              </Text>
+              <Text style={[s.statusL, { color: filter === 'all' ? 'rgba(255,255,255,0.8)' : C.textSec }]}>
+                Todas
+              </Text>
+            </TouchableOpacity>
 
-        {/* Filter pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabsContent}>
-          {FILTER_OPTS.map(opt => {
-            const on = filter === opt.key;
-            return (
-              <TouchableOpacity key={opt.key} onPress={() => setFilter(opt.key)} activeOpacity={0.8}>
-                {on ? (
-                  <LinearGradient colors={[C.purple, C.purpleLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.tabOn}>
-                    <Text style={s.tabOnTxt}>{opt.label}</Text>
-                    <View style={s.tabBadgeOn}><Text style={s.tabBadgeOnTxt}>{opt.count}</Text></View>
-                  </LinearGradient>
-                ) : (
-                  <View style={s.tab}>
-                    <Text style={s.tabTxt}>{opt.label}</Text>
-                    {opt.count > 0 && <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{opt.count}</Text></View>}
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            {FLOW.map(status => {
+              const cfg = STATUS_CFG[status];
+              const n = countOf(status);
+              const isActive = filter === status;
+              
+              return (
+                <TouchableOpacity 
+                  key={status} 
+                  activeOpacity={0.8}
+                  onPress={() => setFilter(status as OrderStatus)}
+                  style={[
+                    s.statusCard, 
+                    { borderColor: isActive ? cfg.color : cfg.color + '40' },
+                    isActive && { backgroundColor: cfg.color }
+                  ]}
+                >
+                  {isActive && (
+                    <LinearGradient 
+                      colors={[cfg.color, cfg.color + 'CC']} 
+                      style={StyleSheet.absoluteFill} 
+                    />
+                  )}
+                  <MaterialIcons 
+                    name={cfg.icon as any} 
+                    size={18} 
+                    color={isActive ? '#fff' : cfg.color} 
+                  />
+                  <Text style={[s.statusN, { color: isActive ? '#fff' : cfg.color }]}>
+                    {n}
+                  </Text>
+                  <Text style={[s.statusL, { color: isActive ? 'rgba(255,255,255,0.8)' : C.textSec }]}>
+                    {cfg.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
 
         {/* Orders list */}
         {loading ? (
@@ -183,10 +238,16 @@ export default function OrdersScreen() {
             const cfg = STATUS_CFG[order.status] || { label: order.status || '?', icon: 'info', color: C.textMut, bg: 'rgba(255,255,255,0.1)', action: '...' };
             return (
               <TouchableOpacity key={order._id} style={s.orderCard} onPress={() => setSelected(order)} activeOpacity={0.75}>
+                {/* Left Side: Order Number (Prominent) */}
+                <View style={[s.orderSide, { backgroundColor: cfg.bg }]}>
+                  <Text style={[s.orderSideHash, { color: cfg.color }]}>#</Text>
+                  <Text style={[s.orderSideNum, { color: cfg.color }]}>{order.orderNumber}</Text>
+                </View>
+
+                {/* Right Side: Details */}
                 <View style={s.orderInner}>
-                  {/* Row 1 */}
+                  {/* Row 1: Status & Time */}
                   <View style={s.orderRow1}>
-                    <Text style={s.orderId}># {order.orderNumber}</Text>
                     <View style={[s.chip, { backgroundColor: cfg.bg }]}>
                       <MaterialIcons name={cfg.icon as any} size={11} color={cfg.color} />
                       <Text style={[s.chipTxt, { color: cfg.color }]}>{cfg.label}</Text>
@@ -194,24 +255,38 @@ export default function OrdersScreen() {
                     <Text style={s.orderTime}>{formatTime(order.createdAt)}</Text>
                   </View>
 
-                  {/* Row 2 */}
+                  {/* Row 2: Source & Total */}
                   <View style={s.orderRow2}>
-                    <View style={[s.avatar, { backgroundColor: cfg.bg }]}>
-                      <Text style={[s.avatarL, { color: cfg.color }]}>#</Text>
-                    </View>
                     <View style={s.nameBlock}>
-                      <Text style={s.studentN}>Orden {order.orderNumber}</Text>
-                      <Text style={s.gradeT}>{order.source} · {order.items.length} ítem{order.items.length !== 1 ? 's' : ''}</Text>
+                      <Text style={s.studentN}>{order.source}</Text>
+                      <Text style={s.gradeT}>{order.items.length} ítem{order.items.length !== 1 ? 's' : ''}</Text>
                     </View>
                     <Text style={s.orderTotal}>${order.total.toLocaleString()}</Text>
                   </View>
 
                   {/* CTA */}
                   {order.status !== 'Entregado' && order.status !== 'Cancelado' && (
-                    <TouchableOpacity onPress={() => advance(order._id, order.status)} activeOpacity={0.8} style={{ borderRadius: 12, overflow: 'hidden' }}>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        const isFood = isFoodOrder(order);
+                        const nextMap: Record<string, OrderStatus> = {
+                          'Pendiente de pago': isFood ? 'En Preparación' : 'Entregado',
+                          'En Preparación': 'Listo',
+                          'Listo': 'Entregado',
+                        };
+                        const next = nextMap[order.status];
+                        if (next) updateStatus(order._id, next);
+                      }} 
+                      activeOpacity={0.8} 
+                      style={{ borderRadius: 12, overflow: 'hidden' }}
+                    >
                       <LinearGradient colors={[cfg.color + 'CC', cfg.color + '88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.ctaBtn}>
                         <MaterialIcons name="arrow-forward" size={13} color="#fff" />
-                        <Text style={s.ctaTxt}>{cfg.action}</Text>
+                        <Text style={s.ctaTxt}>
+                          {(!isFoodOrder(order) && order.status === 'Pendiente de pago') 
+                            ? 'Pagado y Entregado' 
+                            : cfg.action}
+                        </Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   )}
@@ -224,14 +299,16 @@ export default function OrdersScreen() {
       </View>
 
       {/* Detail Modal */}
-      <Modal visible={!!selected} animationType="slide" transparent>
-        <View style={s.overlay}>
-          <TouchableOpacity style={s.overlayBg} onPress={() => setSelected(null)} />
+      <SwipeableSheet 
+        visible={!!selected} 
+        onClose={() => setSelected(null)}
+        maxHeight="90%"
+        fullHeight
+      >
           {selected && (() => {
             const cfg = STATUS_CFG[selected.status] || { label: selected.status || '?', icon: 'info', color: C.textMut, bg: 'rgba(255,255,255,0.1)', action: '...' };
             return (
-              <View style={s.sheet}>
-                <View style={s.handle} />
+              <View style={{ paddingHorizontal: 24, paddingBottom: 20 }}>
                 <View style={s.sheetHead}>
                   <View>
                     <Text style={s.sheetTitle}>Detalle del Pedido</Text>
@@ -243,7 +320,7 @@ export default function OrdersScreen() {
                   </View>
                 </View>
 
-                <View style={s.stuRow}>
+                <View style={[s.stuRow, { marginTop: 14 }]}>
                   <View style={[s.avatarLg, { backgroundColor: cfg.bg }]}>
                     <Text style={[s.avatarLgL, { color: cfg.color }]}>#</Text>
                   </View>
@@ -253,7 +330,7 @@ export default function OrdersScreen() {
                   </View>
                 </View>
 
-                <View style={s.divider} />
+                <View style={[s.divider, { marginVertical: 14 }]} />
                 <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
                     {selected.items.map((item, i) => (
                     <View key={i} style={s.itemRow}>
@@ -264,31 +341,58 @@ export default function OrdersScreen() {
                     ))}
                 </ScrollView>
 
-                <View style={s.divider} />
+                <View style={[s.divider, { marginVertical: 14 }]} />
                 <View style={s.totalRow}>
                   <Text style={s.totalLbl}>Total a Cobrar</Text>
                   <Text style={s.totalVal}>${selected.total.toLocaleString()}</Text>
                 </View>
-                <Text style={s.stuGrade}>Pago mediante: {selected.paymentMethod || 'No especificado'}</Text>
+                <Text style={[s.stuGrade, { marginBottom: 14 }]}>Pago: {selected.paymentMethod || 'Pendiente'}</Text>
+
+                <Text style={[s.sheetTitle, { fontSize: 15, marginTop: 20, marginBottom: 10, color: C.textSec }]}>Cambiar Estado del Pedido</Text>
+                <View style={s.statusPicker}>
+                  {FLOW.map(sKey => {
+                    const sCfg = STATUS_CFG[sKey];
+                    const isNow = selected.status === sKey;
+                    const isFood = isFoodOrder(selected);
+
+                    // Si es SNACK, ocultamos los estados de cocina
+                    if (!isFood && (sKey === 'En Preparación' || sKey === 'Listo')) return null;
+
+                    return (
+                      <TouchableOpacity 
+                        key={sKey}
+                        onPress={() => updateStatus(selected._id, sKey)}
+                        activeOpacity={0.7}
+                        style={[
+                          s.statusOption, 
+                          { borderColor: isNow ? sCfg.color : C.border },
+                          isNow && { backgroundColor: sCfg.bg }
+                        ]}
+                      >
+                        <MaterialIcons name={sCfg.icon as any} size={20} color={isNow ? sCfg.color : C.textSec} />
+                        <Text style={[s.statusOptionTxt, { color: isNow ? sCfg.color : C.textSec }]}>
+                             {(!isFood && sKey === 'Entregado') ? 'Pagado y Entregado' : sCfg.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
                 <View style={s.sheetActions}>
                   <TouchableOpacity style={s.closeBtn} onPress={() => setSelected(null)}>
-                    <Text style={s.closeTxt}>Cerrar</Text>
+                    <Text style={s.closeTxt}>Finalizar Gestión</Text>
                   </TouchableOpacity>
-                  {selected.status !== 'Entregado' && selected.status !== 'Cancelado' && (
-                    <TouchableOpacity onPress={async () => { await advance(selected._id, selected.status); setSelected(null); }} style={{ flex: 2, borderRadius: 14, overflow: 'hidden' }} activeOpacity={0.85}>
-                      <LinearGradient colors={[C.purple, C.purpleLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.nextBtn}>
-                        <MaterialIcons name="arrow-forward" size={15} color="#fff" />
-                        <Text style={s.nextTxt}>{cfg.action}</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
             );
           })()}
-        </View>
-      </Modal>
+      </SwipeableSheet>
+
+      {/* Premium Alert System */}
+      <AppModal 
+        {...alert} 
+        onClose={hideAlert}
+      />
     </SafeAreaView>
   );
 }
@@ -312,41 +416,43 @@ const s = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.teal },
   liveLabel: { fontSize: 11, color: C.teal, fontWeight: '600' },
 
-  statusRow: { gap: 8, paddingHorizontal: 22, paddingVertical: 10 },
-  statusCard: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, backgroundColor: C.card, borderWidth: 1, alignItems: 'center', gap: 4, minWidth: 80 },
-  statusN: { fontSize: 18, fontWeight: '800' },
-  statusL: { fontSize: 10, color: C.textSec },
-
-  tabsScroll: { maxHeight: 46 },
-  tabsContent: { gap: 8, paddingHorizontal: 22, paddingBottom: 4 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: C.card, borderWidth: 1, borderColor: C.border },
-  tabTxt: { color: C.textSec, fontSize: 12, fontWeight: '500' },
-  tabOn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  tabOnTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  tabBadge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: C.cardHi, alignItems: 'center', justifyContent: 'center' },
-  tabBadgeTxt: { fontSize: 10, color: C.textSec, fontWeight: '700' },
-  tabBadgeOn: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  tabBadgeOnTxt: { fontSize: 10, color: '#fff', fontWeight: '700' },
+  statusRow: { gap: 10, paddingHorizontal: 22, paddingVertical: 12 },
+  statusCard: { 
+    width: 88, 
+    height: 80, 
+    borderRadius: 18, 
+    backgroundColor: C.card, 
+    borderWidth: 1.5, 
+    borderColor: C.border, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    gap: 2,
+    overflow: 'hidden'
+  },
+  statusCardOn: {
+    borderColor: 'transparent',
+  },
+  statusN: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
+  statusL: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 
   list: { flex: 1 },
   listInner: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 28, gap: 10 },
 
-  orderCard: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, flexDirection: 'row', overflow: 'hidden' },
-  orderAccent: { width: 4 },
-  orderInner: { flex: 1, padding: 14, gap: 10 },
-  orderRow1: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  orderId: { fontSize: 11, color: C.textMut, fontWeight: '700' },
+  orderCard: { backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.border, flexDirection: 'row', overflow: 'hidden' },
+  orderSide: { width: 70, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderColor: C.border },
+  orderSideHash: { fontSize: 12, fontWeight: '700', marginBottom: -4, opacity: 0.6 },
+  orderSideNum: { fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+  orderInner: { flex: 1, padding: 14, gap: 8 },
+  orderRow1: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   chipTxt: { fontSize: 11, fontWeight: '600' },
-  orderTime: { marginLeft: 'auto', fontSize: 11, color: C.textMut },
-  orderRow2: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  avatarL: { fontWeight: '700', fontSize: 14 },
+  orderTime: { fontSize: 11, color: C.textMut, fontWeight: '600' },
+  orderRow2: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
   nameBlock: { flex: 1 },
-  studentN: { fontSize: 14, fontWeight: '600', color: C.textPri },
-  gradeT: { fontSize: 11, color: C.textSec, marginTop: 1 },
-  orderTotal: { fontSize: 15, fontWeight: '700', color: C.textPri },
-  ctaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10 },
+  studentN: { fontSize: 14, fontWeight: '700', color: C.textPri },
+  gradeT: { fontSize: 11, color: C.textSec },
+  orderTotal: { fontSize: 18, fontWeight: '900', color: C.textPri },
+  ctaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10, marginTop: 4 },
   ctaTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
   empty: { alignItems: 'center', paddingVertical: 64, gap: 10 },
@@ -373,9 +479,13 @@ const s = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLbl: { fontSize: 13, color: C.textSec },
   totalVal: { fontSize: 24, fontWeight: '800', color: C.textPri, letterSpacing: -0.5 },
-  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  statusPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  statusOption: { width: '31%', paddingVertical: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.border, gap: 4 },
+  statusOptionTxt: { fontSize: 10, fontWeight: '700' },
+  statusOptionActive: { borderColor: 'transparent' },
+  sheetActions: { flexDirection: 'row', gap: 10 },
   closeBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: C.cardHi, borderWidth: 1, borderColor: C.border, alignItems: 'center' },
-  closeTxt: { color: C.textSec, fontWeight: '600', fontSize: 14 },
+  closeTxt: { color: C.textPri, fontWeight: '700', fontSize: 14 },
   nextBtn: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   nextTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });
